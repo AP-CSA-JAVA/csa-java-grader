@@ -207,3 +207,5 @@ details.run summary { cursor: pointer; font-size: 0.82rem; color: var(--muted); 
   main, .topbar { padding-left: 16px; padding-right: 16px; }
   .cheerpj-badge { flex-direction: column; gap: 6px; }
 }
+
+.why.hint { color: var(--accent); font-weight: 600; }

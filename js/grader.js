@@ -10,6 +10,7 @@ import { scanSource, className, packageName, hasMain, neutralizeExit, guardLoops
 import { readHeader } from './header.js';
 import { checkConventions } from './conventions.js';
 import { detectNewerJava, newerJavaSummary, forClass } from './newer-java.js';
+import { STUCK } from './report-pdf.js';
 
 /**
  * @param student  from canvas-zip.js
@@ -238,9 +239,28 @@ export async function gradeStudent(student, spec, java, onStep = () => {}) {
     if (spec.compileItemLabel) result.requirements.push({ label: spec.compileItemLabel, pass: false, detail: 'Does not compile.', always: true });
   }
 
+  applyHints(result, spec);
   result.submission = submission;
   result.scores = score(result, spec);
   return result;
+}
+
+/**
+ * spec.hints = { 'Start of a check label': 'Where to look / how to fix it' }
+ * adds a hint to any check whose label starts with that text (ignoring case)
+ * and doesn't already have one. Lets a hint be added without touching the check.
+ */
+function applyHints(result, spec) {
+  const entries = Object.entries(spec.hints || {}).map(([k, v]) => [k.toLowerCase(), v]);
+  if (!entries.length) return;
+  const add = (c) => {
+    if (c.hint) return c;
+    const label = String(c.label || '').toLowerCase();
+    const hit = entries.find(([k]) => label.startsWith(k));
+    return hit ? { ...c, hint: hit[1] } : c;
+  };
+  result.requirements = result.requirements.map(add);
+  for (const run of result.runs) run.checks = run.checks.map(add);
 }
 
 // ---------------------------------------------------------------------
@@ -344,8 +364,10 @@ export function feedbackText(r, spec, finalScore) {
       if ((c.points ?? 1) === 0) continue;
       const mark = c.pass === true ? '✓' : c.pass === false ? '✗' : '?';
       lines.push(`${mark} ${c.label}${c.pass !== true && c.detail ? ` — ${c.detail}` : ''}`);
+      if (c.pass === false && c.hint) lines.push(`    Hint: ${c.hint}`);
     }
     if (s.review) lines.push('', `? = checked by your teacher (${s.review} item${s.review === 1 ? '' : 's'})`);
+    if (!r.compile.ok || [...r.requirements, ...r.runs.flatMap((x) => x.checks)].some((c) => c.pass === false && (c.points ?? 1) > 0)) lines.push('', STUCK);
     if (r.style.length) {
       lines.push('', 'Style notes:');
       for (const issue of r.style) lines.push(`  • ${issue.label} (${issue.count}×)`);
@@ -370,16 +392,38 @@ export function feedbackText(r, spec, finalScore) {
     const errs = r.compile.messages.split('\n').filter((l) => /error:/.test(l));
     (errs.length ? errs : r.compile.messages.split('\n')).slice(0, 5).forEach((l) => lines.push(`    ${l.trim()}`));
   } else {
-    lines.push(`  • Compiled. ${s.checksPassed} of ${s.checksTotal} checks passed.`);
+    lines.push(`  • Compiled. ${s.checksPassed} of ${s.checksTotal} checks passed.__ONCE__`);
   }
+  // Same rule as the score and the correction sheet: a problem caught several ways is listed once.
+  const seen = new Set();
+  const firstTime = (c) => {
+    const keys = [c.label, c.detail, c.group].filter(Boolean);
+    if (keys.some((k) => seen.has(k))) return false;
+    keys.forEach((k) => seen.add(k));
+    return true;
+  };
+  const hintLine = (c, pad) => (c.hint ? [`${pad}  Hint: ${c.hint}`] : []);
+  let anyFailed = !r.compile.ok;
   for (const c of r.requirements) {
-    if (c.pass === false) lines.push(`  ✗ ${c.label}${c.detail ? ` — ${c.detail}` : ''}`);
+    if (c.pass !== false || !firstTime(c)) continue;
+    anyFailed = true;
+    lines.push(`  ✗ ${c.label}${c.detail ? ` — ${c.detail}` : ''}`, ...hintLine(c, '  '));
   }
   for (const run of r.runs) {
-    const bad = run.checks.filter((c) => c.pass === false);
+    const bad = run.checks.filter((c) => c.pass === false && firstTime(c));
     if (!bad.length) continue;
+    anyFailed = true;
     lines.push(`  Test run "${run.label}":`);
-    for (const c of bad) lines.push(`    ✗ ${c.label}${c.detail ? ` — ${c.detail}` : ''}`);
+    for (const c of bad) lines.push(`    ✗ ${c.label}${c.detail ? ` — ${c.detail}` : ''}`, ...hintLine(c, '    '));
+  }
+  if (anyFailed) lines.push('', `  ${STUCK}`);
+  // say why fewer items than failed checks are listed
+  const listed = lines.filter((l) => /^\s+✗ /.test(l)).length;
+  const failedCount = (s.checksTotal || 0) - (s.checksPassed || 0);
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes('__ONCE__')) {
+      lines[i] = lines[i].replace('__ONCE__', failedCount > listed && listed ? ' One mistake can fail several checks, so each problem is listed once.' : '');
+    }
   }
 
   lines.push('');

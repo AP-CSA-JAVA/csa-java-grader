@@ -10,10 +10,38 @@ export { loose, countOccurrences };
 /**
  * One pass/fail line shown to you and the student.
  * Checks that share a `group` are one problem: if several fail, it counts once
- * (e.g. a code check and a test run that catch the same bug).
+ * (e.g. a code check and a test run that catch the same bug), and the
+ * correction sheet lists it once.
+ * `hint` (optional) tells the student where to look when the check fails,
+ * e.g. 'See the TO-DO about converting the angle: Math.sin() needs radians.'
+ * The 4th argument can also be an object: check(label, pass, detail, { group, hint }).
  */
-export function check(label, pass, detail = '', group = null) {
-  return group ? { label, pass: !!pass, detail, group } : { label, pass: !!pass, detail };
+export function check(label, pass, detail = '', group = null, hint = '') {
+  if (group && typeof group === 'object') ({ group = null, hint = '' } = group);
+  const c = { label, pass: !!pass, detail };
+  if (group) c.group = group;
+  if (hint) c.hint = hint;
+  return c;
+}
+
+/** Adds a hint (and optionally a group) to an existing check: hinted(finishedNormally(r), 'See …'). */
+export function hinted(c, hint, group = null) {
+  return { ...c, ...(hint ? { hint } : {}), ...(group ? { group } : {}) };
+}
+
+/**
+ * A value as a student should read it: long decimals rounded to 3 places,
+ * and NaN / Infinity explained.
+ */
+export function readable(v) {
+  const s = String(v ?? '').trim();
+  if (s === 'NaN') return 'NaN ("not a number": usually Math.sqrt() of a negative number, or 0.0 / 0.0)';
+  if (/^-?Infinity$/.test(s)) return `${s} (a number divided by zero)`;
+  if (/^-?\d+\.\d{4,}(?:E-?\d+)?$/i.test(s)) {
+    const n = Number(s);
+    return String(Math.round(n * 1000) / 1000);
+  }
+  return s;
 }
 
 /** Repeats text n times: repeat('Q\nyes\n', 3) */
@@ -306,14 +334,19 @@ export function jstr(s) {
 }
 
 /** A check built from a driver value: did key equal expected (spacing-insensitive)? */
-export function driverCheck(values, key, expected, label, { ignoreCase = false, tol = null } = {}) {
-  if (values[`${key}.error`]) return check(label, false, `Crashed: ${values[`${key}.error`]}`);
+export function driverCheck(values, key, expected, label, { ignoreCase = false, tol = null, group = null, hint = '' } = {}) {
+  const opts = { group, hint };
+  if (values[`${key}.error`]) return check(label, false, `Crashed: ${values[`${key}.error`]}`, opts);
   const got = values[key];
-  if (got === undefined) return check(label, false, 'Not reached — an earlier step failed.');
+  if (got === undefined) return check(label, false, 'Not reached — an earlier step failed.', opts);
   let ok;
   if (tol !== null) ok = Math.abs(Number(got) - Number(expected)) <= tol;
   else ok = ignoreCase ? squish(got).toLowerCase() === squish(expected).toLowerCase() : squish(got) === squish(expected);
-  return check(label, ok, ok ? '' : `Expected ${JSON.stringify(String(expected))}, got ${JSON.stringify(got)}`);
+  if (ok) return check(label, true, '', opts);
+  const detail = tol !== null
+    ? `Expected about ${readable(Number(expected).toFixed(6))}, got ${readable(got)}`
+    : `Expected ${JSON.stringify(String(expected))}, got ${JSON.stringify(got)}`;
+  return check(label, false, detail, opts);
 }
 
 // ---------------------------------------------------------------------

@@ -85,7 +85,7 @@ export function buildSheet(r, spec) {
   };
   for (const c of r.requirements || []) {
     if (c.pass !== false || c.detail === 'Does not compile.') continue;   // compile problems are item 1 already
-    if (once(c)) sheet.items.push({ title: plainLabel(c.label), detail: c.detail || '' });
+    if (once(c)) sheet.items.push({ title: plainLabel(c.label), detail: c.detail || '', hint: c.hint || '' });
   }
   for (const run of r.runs || []) {
     for (const c of run.checks) {
@@ -95,6 +95,7 @@ export function buildSheet(r, spec) {
       sheet.items.push({
         title: plainLabel(c.label),
         detail: c.detail || '',
+        hint: c.hint || '',
         context: run.label,
         typed: typedSummary(run.stdin),
       });
@@ -133,6 +134,9 @@ function typedSummary(stdin) {
 // ---------------------------------------------------------------------
 // 2. Drawing
 // ---------------------------------------------------------------------
+
+/** Shown on every correction sheet and in the Canvas feedback when something needs fixing. */
+export const STUCK = 'Stuck on an item? Re-read the step it names in the assignment instructions and the TO-DO comments in the starter code.';
 
 const PAGE = { w: 612, h: 792, margin: 46 };   // US Letter in points
 const INK = [29, 29, 31];
@@ -229,9 +233,13 @@ function drawSheet(doc, sheet, lim, { firstPage, gradedOn }) {
 
   // ---- what passed ----
   size(10); font('normal'); color(INK);
+  const failedChecks = sheet.total - sheet.passed;
   const passedText = !sheet.compiled
     ? 'Your program did not compile, so the other checks could not run yet.'
-    : sheet.total ? `${sheet.passed} of ${sheet.total} checks passed.` : 'Your program compiled.';
+    : !sheet.total ? 'Your program compiled.'
+      : failedChecks > sheet.items.length && sheet.items.length
+        ? `${sheet.passed} of ${sheet.total} checks passed. One mistake can fail several checks, so each problem is listed once below.`
+        : `${sheet.passed} of ${sheet.total} checks passed.`;
   para(passedText, { pt: 10.5, style: 'bold' });
   y += 6;
 
@@ -240,6 +248,10 @@ function drawSheet(doc, sheet, lim, { firstPage, gradedOn }) {
   const hidden = sheet.items.length - items.length;
   sectionTitle(doc, items.length ? 'What to fix' : sheet.style.length ? 'Every check passed - just the style notes below' : 'Nothing to fix - everything passed!', () => { ensure(lh(13) + 8); return y; }, (ny) => { y = ny; }, k);
 
+  if (items.length) {
+    para(STUCK, { pt: 9.5, style: 'italic', c: MUTED });
+    y += 4;
+  }
   items.forEach((it, idx) => {
     // estimate the block so a short item doesn't split across pages
     size(10.5); font('bold');
@@ -252,6 +264,7 @@ function drawSheet(doc, sheet, lim, { firstPage, gradedOn }) {
     color(INK);
     for (const line of titleLines) { ensure(lh(10.5)); doc.text(line, M + 18, y + 10.5 * k); y += lh(10.5); }
     if (it.detail) para(it.detail, { pt: 9.5, c: MUTED, indent: 18 });
+    if (it.hint) para(`Hint: ${it.hint}`, { pt: 9.5, style: 'bold', c: ACCENT, indent: 18 });
     if (it.lines && it.lines.length) {
       it.lines.slice(0, lim.compileErrors).forEach((l) => para(l, { pt: 8.5, mono: true, indent: 18 }));
       if (it.lines.length > lim.compileErrors) para(`...and ${it.lines.length - lim.compileErrors} more`, { pt: 8.5, c: MUTED, indent: 18 });

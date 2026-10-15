@@ -412,7 +412,8 @@ function toggleDetails(row, st, forceOpen = false) {
 function detailsHtml(r) {
   const spec = state.spec;
   const checkLi = (c) => `<li class="${c.pass === null ? 'skip' : c.pass ? 'pass' : 'fail'}">${escapeHtml(c.label)}`
-    + `${c.detail ? `<span class="why">${escapeHtml(c.detail)}</span>` : ''}</li>`;
+    + `${c.detail ? `<span class="why">${escapeHtml(c.detail)}</span>` : ''}`
+    + `${c.hint && c.pass === false ? `<span class="why hint">Hint: ${escapeHtml(c.hint)}</span>` : ''}</li>`;
 
   // Compilation & Output
   let co = '';
