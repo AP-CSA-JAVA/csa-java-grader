@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CSA Java Grader</title>
+  <meta name="description" content="Grades AP CSA Java submissions from a Canvas zip: compiles, runs, and checks style in the browser.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23c2410c'/><text x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='monospace' font-weight='700'>J</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- CheerpJ: Java in the browser (Community Licence, see footer) -->
+  <script src="https://cjrtnc.leaningtech.com/4.3/loader.js"></script>
+  <script src="js/vendor/jszip.min.js"></script>
+  <script src="js/vendor/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">J</span>
+      <div>
+        <h1>CSA Java Grader</h1>
+        <p class="sub">AP Computer Science A · Canvas submissions</p>
+      </div>
+    </div>
+    <div id="javaStatus" class="pill pill-wait" role="status">Java: starting…</div>
+  </header>
+
+  <main>
+    <section class="setup card">
+      <div class="field">
+        <label for="specSelect">Assignment</label>
+        <select id="specSelect"></select>
+        <div class="spec-source">
+          <button id="loadSpecsBtn" class="btn btn-small" type="button" title="Choose the zip of your private assignments repository (GitHub: Code → Download ZIP)">Load assignments</button>
+          <span id="specSourceText" class="muted small"></span>
+          <button id="clearSpecsBtn" class="btn btn-small btn-quiet" type="button" hidden>Remove</button>
+          <input id="specFileInput" type="file" accept=".zip,.js" multiple hidden>
+        </div>
+      </div>
+
+      <div id="dropZone" class="drop" tabindex="0" role="button" aria-label="Choose a Canvas submissions zip">
+        <input id="fileInput" type="file" accept=".zip" hidden>
+        <div class="drop-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        </div>
+        <div>
+          <strong>Drop the Canvas submissions .zip here</strong>
+          <span class="muted">or click to choose it · Canvas → Assignment → Download Submissions</span>
+        </div>
+      </div>
+
+      <div id="zipInfo" class="zip-info" hidden></div>
+    </section>
+
+    <div id="banner" class="banner" role="alert" hidden></div>
+
+    <section id="resultsCard" class="card" hidden>
+      <div class="results-head">
+        <div>
+          <h2 id="resultsTitle">Results</h2>
+          <p id="progressText" class="muted"></p>
+        </div>
+        <div class="actions">
+          <button id="gradeBtn" class="btn btn-primary" type="button">Grade all</button>
+          <button id="printBtn" class="btn" type="button" disabled title="One PDF, two pages per student — print double-sided">Print correction sheets</button>
+          <button id="summaryBtn" class="btn" type="button" disabled title="For you: every student's scores and the most common mistakes, in one PDF">Class summary (PDF)</button>
+          <button id="exportBtn" class="btn" type="button" disabled>Export CSV</button>
+          <button id="clearBtn" class="btn btn-quiet" type="button" title="Forget saved results for this zip">Clear saved</button>
+        </div>
+      </div>
+      <div class="progress" aria-hidden="true"><div id="progressBar"></div></div>
+
+      <div class="table-wrap">
+        <table class="results">
+          <thead>
+            <tr>
+              <th class="col-student">Student</th>
+              <th title="Program compiles and runs; output matches expected results">Compilation<br>&amp; Output</th>
+              <th title="Comments, naming, indentation (Oracle code conventions)">Documentation<br>&amp; Style</th>
+              <th title="Required .java file(s) and test cases submitted">Submission</th>
+              <th title="Block comment header">Header</th>
+              <th>Suggested</th>
+              <th>Final</th>
+              <th class="col-open"><span class="sr-only">Details</span></th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card help">
+      <details>
+        <summary>How grading works</summary>
+        <ul>
+          <li><b>Compilation &amp; Output</b> — compiled as Java 8, the course version. If it only compiles as Java 17 (it used <code>var</code>, records, switch arrows…), it's graded as Java 17 with no penalty and marked <b>JAVA 17</b>, and the newer features are listed for the student. The assignment's checks run against the code and against scripted runs where the grader types the answers. A problem that repeats across runs counts once. Doesn't compile → 2 (≤ 2 errors) or 1.</li>
+          <li><b>Documentation &amp; Style</b> — Oracle code conventions. Each <i>type</i> of mistake counts once; the student sees every line where it happened. The header is not style-checked.</li>
+          <li><b>Submission</b> — a .java file plus a test cases document, a screenshot, or a comment in the code labeled <code>TEST CASE 1:</code>, <code>TEST CASE 2:</code>… The grader only confirms they exist; you still read them.</li>
+          <li><b>Header</b> — −1 if missing or any field is blank or still a placeholder like <code>[Your Full Name]</code>.</li>
+          <li><b>Suggested</b> — average of the three columns, never above Compilation &amp; Output, then the grading-note caps and the header deduction. Type in <b>Final</b> to override.</li>
+          <li><b>Correction sheets</b> — a printable PDF for each student (at most two pages) with the suggested score, a numbered fix list and the style notes. <b>Print correction sheets</b> makes one PDF for the whole class, two pages per student, so printing double-sided gives one sheet of paper each.</li>
+          <li><b>Class summary</b> — a PDF for you, not the students: the class average and score spread, every student's three columns, header deduction, suggested and final score, and the most common program and style mistakes with who made them. Save one after each grading run as a record.</li>
+          <li><b>Assignments</b> — only “Any assignment” is built in. Your assignment files live in your private repository: download it as a zip (Code → Download ZIP) and click <b>Load assignments</b>. They're kept in this browser only; load the zip again after editing an assignment or on another computer.</li>
+          <li>Everything runs in this browser tab. Student code is never uploaded anywhere. Results are saved in this browser so a reload picks up where it left off.</li>
+        </ul>
+      </details>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <a href="https://cheerpj.com" target="_blank" rel="noopener" class="cheerpj-badge" aria-label="Powered by CheerpJ">
+      <span class="muted">Java runs in your browser with</span>
+      <img src="assets/cheerpj-logo.png" alt="CheerpJ" width="150" height="41">
+    </a>
+    <p class="muted small">ap-csa-java · Free, non-commercial educational use under the <a href="https://cheerpj.com/licensing" target="_blank" rel="noopener">CheerpJ Community Licence</a></p>
+  </footer>
+
+  <!-- CheerpJ writes anything Java prints here; the grader reads it when something goes wrong -->
+  <pre id="console" hidden></pre>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
