@@ -12,6 +12,7 @@
 // browser; nothing is uploaded.
 // =====================================================================
 
+import { specTitle, specSlug } from './assignment-name.js';
 import { forClass } from './newer-java.js';
 
 // ---------------------------------------------------------------------
@@ -36,7 +37,7 @@ export function buildSheet(r, spec) {
     student: nameFromHeader || r.name,
     canvasName: r.name,
     late: !!r.late,
-    assignment: spec.id === 'general' ? 'Assignment' : `${spec.id} — ${spec.title}`,
+    assignment: spec.id === 'general' && !spec.displayTitle ? 'Assignment' : specTitle(spec, ' — '),
     mode: s.mode === 'points' ? 'points' : 'rubric',
     score: s.mode === 'points' ? `${s.points} / ${s.maxPoints}` : `${s.suggested ?? '—'} / 5`,
     columns: s.mode === 'points' ? [] : [
@@ -394,7 +395,7 @@ export function classPdf(JsPDF, results, spec) {
 
 /** File name for a student's sheet; keeps the Canvas prefix when known. */
 export function sheetFileName(r, spec) {
-  const id = String(spec.id).replace(/[^\w.]+/g, '-');
+  const id = specSlug(spec);
   if (r.canvasPrefix) return `${r.canvasPrefix}${id}-correction-sheet.pdf`;
   return `${String(r.name).replace(/[^\w]+/g, '_')}_${id}-correction-sheet.pdf`;
 }

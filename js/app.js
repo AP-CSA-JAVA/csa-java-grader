@@ -3,6 +3,7 @@
 // results table, details, CSV export, and saved progress.
 // =====================================================================
 
+import { outputSpec, specTitle, specSlug } from './assignment-name.js';
 import { CONFIG } from './config.js';
 import { specList, privateInfo, importSpec, loadPrivate, clearPrivate } from './spec-store.js';
 import { readCanvasZip } from './canvas-zip.js';
@@ -284,8 +285,18 @@ function errorResult(st, err) {
 // Rendering
 // ---------------------------------------------------------------------
 
+/** The assignment for titles and file names ("Any assignment" gets a name from the zip). */
+function outSpec() {
+  return outputSpec(state.spec, state.results, state.zipName);
+}
+
+function showTitle() {
+  const named = outSpec();
+  els.resultsTitle.textContent = named.id === 'general' && !named.displayTitle ? 'Results' : specTitle(named, ' ');
+}
+
 function renderAll() {
-  els.resultsTitle.textContent = `${state.spec.id === 'general' ? 'Results' : `${state.spec.id} ${state.spec.title}`}`;
+  showTitle();
   els.body.innerHTML = '';
   for (const st of state.students) renderRow(st);
   updateProgress();
@@ -400,7 +411,7 @@ function toggleDetails(row, st, forceOpen = false) {
   });
   next.querySelector('[data-pdf]')?.addEventListener('click', () => {
     const r = state.results.get(st.key);
-    savePdf(studentPdf(window.jspdf.jsPDF, r, state.spec), sheetFileName(r, state.spec));
+    savePdf(studentPdf(window.jspdf.jsPDF, r, outSpec()), sheetFileName(r, outSpec()));
   });
   next.querySelector('[data-regrade]')?.addEventListener('click', () => {
     state.results.delete(st.key);
@@ -410,7 +421,7 @@ function toggleDetails(row, st, forceOpen = false) {
 }
 
 function detailsHtml(r) {
-  const spec = state.spec;
+  const spec = outSpec();
   const checkLi = (c) => `<li class="${c.pass === null ? 'skip' : c.pass ? 'pass' : 'fail'}">${escapeHtml(c.label)}`
     + `${c.detail ? `<span class="why">${escapeHtml(c.detail)}</span>` : ''}`
     + `${c.hint && c.pass === false ? `<span class="why hint">Hint: ${escapeHtml(c.hint)}</span>` : ''}</li>`;
@@ -508,6 +519,7 @@ function newerJavaHtml(r) {
 }
 
 function updateProgress(current = null) {
+  showTitle();
   const total = state.students.length;
   const done = state.students.filter((s) => state.results.has(s.key)).length;
   els.progressBar.style.width = total ? `${(done / total) * 100}%` : '0';
@@ -535,8 +547,8 @@ els.printBtn.addEventListener('click', () => {
   const graded = state.students.map((st) => state.results.get(st.key)).filter((r) => r && r.scores);
   const skipped = state.students.length - graded.length;
   if (!graded.length) return;
-  const doc = classPdf(window.jspdf.jsPDF, graded, state.spec);
-  savePdf(doc, `${String(state.spec.id).replace(/[^\w.]+/g, '-')}-correction-sheets.pdf`);
+  const doc = classPdf(window.jspdf.jsPDF, graded, outSpec());
+  savePdf(doc, `${specSlug(outSpec())}-correction-sheets.pdf`);
   if (skipped) showBanner(`${skipped} student${skipped === 1 ? '' : 's'} not included (not graded yet, or marked CHECK).`);
 });
 
@@ -544,8 +556,8 @@ els.printBtn.addEventListener('click', () => {
 els.summaryBtn.addEventListener('click', () => {
   if (!window.jspdf) { showBanner('The PDF tool did not load. Reload the page and try again.'); return; }
   if (![...state.results.values()].some((r) => r.scores)) return;
-  const doc = summaryPdf(window.jspdf.jsPDF, state.students, state.results, state.finals, state.spec, state.zipName);
-  savePdf(doc, summaryFileName(state.spec));
+  const doc = summaryPdf(window.jspdf.jsPDF, state.students, state.results, state.finals, outSpec(), state.zipName);
+  savePdf(doc, summaryFileName(outSpec()));
 });
 
 function savePdf(doc, fileName) {
@@ -575,14 +587,14 @@ els.exportBtn.addEventListener('click', () => {
       pts ? `${s.points}/${s.maxPoints}` : s?.suggested ?? '', final,
       r.newerJava ? `${r.newerJava.compiled ? 'Graded as Java 17: ' : ''}${r.newerJava.features.map((f) => f.name).join(', ') || 'yes'}` : '',
       r.files.join('; '),
-      s ? feedbackText(r, state.spec, state.finals.get(st.key)) : r.notes.join(' '),
+      s ? feedbackText(r, outSpec(), state.finals.get(st.key)) : r.notes.join(' '),
     ]);
   }
   const csv = rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `${state.spec.id}-grades.csv`;
+  a.download = `${specSlug(outSpec())}-grades.csv`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 });

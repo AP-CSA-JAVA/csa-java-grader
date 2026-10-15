@@ -13,6 +13,7 @@
 // in the browser and nothing is uploaded.
 // =====================================================================
 
+import { specTitle, specSlug } from './assignment-name.js';
 import { buildSheet } from './report-pdf.js';
 
 const PAGE = { w: 792, h: 612, margin: 40 };   // US Letter, landscape, in points
@@ -125,7 +126,7 @@ export function buildSummary(students, results, finals, spec, zipName = '') {
   const namesWhere = (fn) => graded.filter(fn).map((r) => r.name);
 
   return {
-    title: spec.id === 'general' ? 'Any assignment' : `${spec.id} - ${spec.title}`,
+    title: specTitle(spec),
     zipName,
     points,
     max,
@@ -467,5 +468,5 @@ export function summaryPdf(JsPDF, students, results, finals, spec, zipName = '')
 export function summaryFileName(spec) {
   const d = new Date();
   const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  return `${String(spec.id).replace(/[^\w.]+/g, '-')}-class-summary-${stamp}.pdf`;
+  return `${specSlug(spec)}-class-summary-${stamp}.pdf`;
 }

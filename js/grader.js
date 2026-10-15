@@ -5,6 +5,7 @@
 // depending on the `java` backend passed in.
 // =====================================================================
 
+import { specTitle } from './assignment-name.js';
 import { CONFIG } from './config.js';
 import { scanSource, className, packageName, hasMain, neutralizeExit, guardLoops, topLevelClasses } from './java-text.js';
 import { readHeader } from './header.js';
@@ -348,7 +349,7 @@ function scorePoints(r, spec) {
 export function feedbackText(r, spec, finalScore) {
   const lines = [];
   const s = r.scores;
-  lines.push(`${spec.id === 'general' ? 'Assignment' : `${spec.id} ${spec.title}`} — ${finalScore ?? s.suggested}/5`);
+  lines.push(`${spec.id === 'general' && !spec.displayTitle ? 'Assignment' : specTitle(spec, ' ')} — ${finalScore ?? s.suggested}/5`);
   lines.push('');
 
   if (!r.submission?.hasJava || !r.compile) {
