@@ -244,6 +244,7 @@ export function privateFields(classCode) {
 //   out("key", value);                 records a value for the spec to check
 //   String s = capture(() -> obj.printOrder());   what a method printed
 //   Object v = field(obj, "itemName");            reads a private field
+//   Object r = scall("BMI", "bmi", 70.0, 150.0);   calls a static method
 // ---------------------------------------------------------------------
 
 export function driver(className, body) {
@@ -288,6 +289,19 @@ export function driver(className, body) {
             }
         }
         throw new NoSuchMethodException(name + " with " + a.length + " parameter(s)");
+    }
+    /** Calls a static method by name with reflection: scall("BMI", "bmi", 70.0, 150.0). */
+    static Object scall(String cls, String name, Object... a) throws Throwable {
+        for (java.lang.reflect.Method m : Class.forName(cls).getDeclaredMethods()) {
+            if (m.getName().equals(name) && m.getParameterTypes().length == a.length
+                    && java.lang.reflect.Modifier.isStatic(m.getModifiers())) {
+                m.setAccessible(true);
+                try { return m.invoke(null, a); }
+                catch (java.lang.reflect.InvocationTargetException e) { throw e.getCause(); }
+                catch (IllegalArgumentException e) { /* try the next overload */ }
+            }
+        }
+        throw new NoSuchMethodException("static method " + name + " with " + a.length + " parameter(s) in " + cls);
     }
     /** Runs every public no-parameter void method a class declares (e.g. a calculate() step). */
     static void runVoidMethods(Object o) throws Throwable {
@@ -422,4 +436,20 @@ export function commentsMention(ctx, ...words) {
 /** A reminder for something only the teacher can judge (not scored). */
 export function review(label, detail = 'Check this by hand.') {
   return { label, pass: null, detail };
+}
+
+/**
+ * The 2.06a run stamp, printed first by every activity from 2.07 on:
+ *   Run: 10/11/2026 01:03 PM
+ * All runs share the group 'stamp', so a missing stamp counts once.
+ */
+export function runStamp(stdout) {
+  const lines = outputLines(stdout);
+  const first = lines[0] || '';
+  // first line, or second after a title line
+  const ok = lines.slice(0, 2).some((l) => /^Run:\s*\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}\s*[AaPp]\.?\s?[Mm]\.?$/.test(l));
+  return check('Prints the run stamp first (Run: MM/dd/yyyy hh:mm AM)', ok, ok ? '' : `First line: ${first || '(nothing)'}`, {
+    group: 'stamp',
+    hint: 'See "The Run Stamp" in 2.06a: DateTimeFormatter.ofPattern("MM/dd/yyyy hh:mm a"), then print "Run: " + LocalDateTime.now().format(stamp) as the first line.',
+  });
 }
