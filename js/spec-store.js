@@ -13,6 +13,10 @@
 // exports SPECS), keeps the files in THIS browser only (localStorage), and
 // imports them from memory. Nothing is uploaded anywhere. Load the zip again
 // after editing an assignment, or on another computer.
+//
+// The private repository can also hold mailer.js with your Email students
+// settings, so they are filled in without typing:
+//   export const MAILER = { url: 'https://script.google.com/macros/s/…/exec', key: '…' };
 // =====================================================================
 
 import { SPECS as BUILT_IN } from '../specs/index.js';
@@ -38,11 +42,16 @@ export function specList() {
   return [...priv, ...builtInList()];
 }
 
-/** { count, source, loadedAt } for the status line, or null if none loaded. */
+/** { count, source, loadedAt, mailer } for the status line, or null if none loaded. */
 export function privateInfo() {
   const store = readStore();
   if (!store?.specs?.length) return null;
-  return { count: store.specs.length, source: store.source, loadedAt: store.loadedAt };
+  return { count: store.specs.length, source: store.source, loadedAt: store.loadedAt, mailer: !!store.mailer };
+}
+
+/** { url, key } from mailer.js in the private zip, or null. */
+export function privateMailer() {
+  return readStore()?.mailer || null;
 }
 
 export function clearPrivate() {
@@ -143,9 +152,21 @@ export async function loadPrivate(files, JSZip) {
   }
   if (broken.length) throw new Error(`These assignment files have errors: ${broken.join('; ')}`);
 
+  // Email students settings: any .js file that exports MAILER (e.g. mailer.js).
+  let mailer = null;
+  const mailerPath = [...texts.keys()].find((p) => /export\s+const\s+MAILER\s*=/.test(texts.get(p)));
+  if (mailerPath) {
+    try {
+      const { MAILER } = await importText(texts.get(mailerPath));
+      if (MAILER?.url) mailer = { url: String(MAILER.url).trim(), key: String(MAILER.key || '') };
+    } catch (err) {
+      throw new Error(`${baseName(mailerPath)} has an error: ${String(err.message || err).slice(0, 80)}`);
+    }
+  }
+
   const source = files.length === 1 ? files[0].name : `${files.length} files`;
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({ source, loadedAt: new Date().toISOString(), specs }));
+    localStorage.setItem(STORE_KEY, JSON.stringify({ source, loadedAt: new Date().toISOString(), specs, mailer }));
   } catch {
     throw new Error('This browser would not save the assignments (storage is full or blocked).');
   }

@@ -5,7 +5,7 @@
 
 import { outputSpec, specTitle, specSlug } from './assignment-name.js';
 import { CONFIG } from './config.js';
-import { specList, privateInfo, importSpec, loadPrivate, clearPrivate } from './spec-store.js';
+import { specList, privateInfo, privateMailer, importSpec, loadPrivate, clearPrivate } from './spec-store.js';
 import { readCanvasZip } from './canvas-zip.js';
 import { gradeStudent, feedbackText } from './grader.js';
 import { startJava, compileStudent, compileDriver, runStudent, harnessVersion } from './runner.js';
@@ -59,7 +59,7 @@ function fillSpecs(want) {
 
   const info = privateInfo();
   els.specSourceText.textContent = info
-    ? `${info.count} assignment${info.count === 1 ? '' : 's'} from ${info.source}, loaded ${new Date(info.loadedAt).toLocaleDateString()}`
+    ? `${info.count} assignment${info.count === 1 ? '' : 's'}${info.mailer ? ' and mailer settings' : ''} from ${info.source}, loaded ${new Date(info.loadedAt).toLocaleDateString()}`
     : 'Only “Any assignment” is built in. Load your assignments zip to grade with tests.';
   els.clearSpecsBtn.hidden = !info;
 }
@@ -106,7 +106,7 @@ els.specFileInput.addEventListener('change', async () => {
   }
 });
 els.clearSpecsBtn.addEventListener('click', async () => {
-  if (!confirm('Remove the loaded assignments from this browser? Load the zip again to get them back.')) return;
+  if (!confirm('Remove the loaded assignments (and mailer settings) from this browser? Load the zip again to get them back.')) return;
   clearPrivate();
   fillSpecs();
   await chooseSpec(els.specSelect.value);
@@ -590,6 +590,7 @@ initEmail({
   specSlug,
   specTitle: (spec) => specTitle(spec, ' '),
   escapeHtml,
+  privateMailer,
 });
 
 // ---------------------------------------------------------------------

@@ -45,12 +45,19 @@ export function initEmail(app) {
   let sending = false;
   let stopAsked = false;
 
-  els.url.value = localGet(URL_KEY) || E.mailerUrl || '';
-  els.key.value = sessionGet(KEY_KEY) || '';
+  // Settings from mailer.js in the private assignments zip win; otherwise what was typed here.
+  function fillSettings() {
+    const pm = app.privateMailer?.();
+    els.url.value = pm?.url || localGet(URL_KEY) || '';
+    els.key.value = pm?.key || sessionGet(KEY_KEY) || '';
+    els.url.title = els.key.title = pm ? 'Filled in from mailer.js in your assignments zip' : '';
+  }
+  fillSettings();
   els.url.addEventListener('change', () => { localSet(URL_KEY, els.url.value.trim()); });
   els.key.addEventListener('change', () => { sessionSet(KEY_KEY, els.key.value); });
 
   els.open.addEventListener('click', () => {
+    fillSettings();
     els.test.checked = true;                  // every time: a real send is a deliberate choice
     els.note.textContent = '';
     showRoster();
