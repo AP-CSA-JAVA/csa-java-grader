@@ -45,7 +45,7 @@ export function initEmail(app) {
   let sending = false;
   let stopAsked = false;
 
-  els.url.value = localGet(URL_KEY) || '';
+  els.url.value = localGet(URL_KEY) || E.mailerUrl || '';
   els.key.value = sessionGet(KEY_KEY) || '';
   els.url.addEventListener('change', () => { localSet(URL_KEY, els.url.value.trim()); });
   els.key.addEventListener('change', () => { sessionSet(KEY_KEY, els.key.value); });
