@@ -49,7 +49,8 @@ export const CONFIG = {
   // ---------- Header ----------
   headerFields: [
     { key: 'name', label: 'Name', aliases: ['name', 'author', 'student'] },
-    { key: 'partner', label: 'Partner', aliases: ['partner', 'partners'] },
+    // optional: never deducted, whether it says None, N/A, is blank or is left out
+    { key: 'partner', label: 'Partner', aliases: ['partner', 'partners'], optional: true },
     { key: 'course', label: 'Course', aliases: ['course', 'course name'] },
     { key: 'instructor', label: 'Instructor', aliases: ['instructor', 'teacher'] },
     { key: 'assignment', label: 'Assignment', aliases: ['assignment', 'program'] },

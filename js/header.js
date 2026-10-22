@@ -136,7 +136,8 @@ export function readHeader(src) {
   for (const b of blocks) {
     const { fields, recognized } = parseBlock(b.text);
     if (recognized < 2) continue;
-    const blank = fields.filter((f) => !f.filled).map((f) => f.label);
+    const optional = new Set(CONFIG.headerFields.filter((f) => f.optional).map((f) => f.key));
+    const blank = fields.filter((f) => !f.filled && !optional.has(f.key)).map((f) => f.label);
     return {
       present: true,
       text: b.text,
