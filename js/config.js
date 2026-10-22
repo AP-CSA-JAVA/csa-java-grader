@@ -72,6 +72,7 @@ export const CONFIG = {
   // Addresses come from the roster you load (a Canvas gradebook export).
   // If it has an Email column, that is used; otherwise <idColumn>@<domain>.
   email: {
+    mailerUrl: 'https://script.google.com/macros/s/AKfycbwzu5C7JpTc9tz7q3snwHNZ2bo1ngnOjdJa3o8zWRuZScn5AWNH5xDAR_Y-7dBNhclgaw/exec',
     domain: 'lbschools.net',      // student addresses must end with this
     idColumn: 'SIS User ID',      // roster column holding the part before the @
     testLimit: 3,                 // a test run sends at most this many, all to you
