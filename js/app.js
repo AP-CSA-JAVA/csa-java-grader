@@ -11,6 +11,7 @@ import { gradeStudent, feedbackText } from './grader.js';
 import { startJava, compileStudent, compileDriver, runStudent, harnessVersion } from './runner.js';
 import { studentPdf, classPdf, sheetFileName } from './report-pdf.js';
 import { summaryPdf, summaryFileName } from './summary-pdf.js';
+import { initEmail } from './email.js';
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -19,6 +20,7 @@ const els = {
   progressBar: $('progressBar'), banner: $('banner'), body: $('resultsBody'),
   specSourceText: $('specSourceText'), loadSpecsBtn: $('loadSpecsBtn'), clearSpecsBtn: $('clearSpecsBtn'), specFileInput: $('specFileInput'),
   gradeBtn: $('gradeBtn'), exportBtn: $('exportBtn'), clearBtn: $('clearBtn'), printBtn: $('printBtn'), summaryBtn: $('summaryBtn'),
+  emailBtn: $('emailBtn'),
 };
 
 const state = {
@@ -535,6 +537,7 @@ function updateButtons() {
   els.exportBtn.disabled = state.grading || !state.results.size;
   els.printBtn.disabled = state.grading || ![...state.results.values()].some((r) => r.scores);
   els.summaryBtn.disabled = els.printBtn.disabled;
+  els.emailBtn.disabled = els.printBtn.disabled;
   els.clearBtn.disabled = state.grading;
 }
 
@@ -568,6 +571,26 @@ function savePdf(doc, fileName) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
+
+// ---------------------------------------------------------------------
+// Email students (js/email.js; mailer in apps-script/Mailer.gs)
+// ---------------------------------------------------------------------
+
+initEmail({
+  getStudents: () => state.students,
+  getResult: (key) => state.results.get(key),
+  getFinal: (key) => state.finals.get(key),
+  outSpec,
+  feedbackText,
+  studentPdf: (r, spec) => {
+    if (!window.jspdf) throw new Error('The PDF tool did not load. Reload the page.');
+    return studentPdf(window.jspdf.jsPDF, r, spec);
+  },
+  sheetFileName,
+  specSlug,
+  specTitle: (spec) => specTitle(spec, ' '),
+  escapeHtml,
+});
 
 // ---------------------------------------------------------------------
 // CSV export

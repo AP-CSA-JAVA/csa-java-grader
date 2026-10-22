@@ -67,4 +67,19 @@ export const CONFIG = {
   // ---------- Grading notes caps ----------
   capNoCompile: 2,           // "A program that does not compile cannot earn higher than a 2"
   capNoTestCases: 4,         // "A missing test cases document cannot earn higher than a 4"
+
+  // ---------- Email students (setup: EMAIL-SETUP.md) ----------
+  // Addresses come from the roster you load (a Canvas gradebook export).
+  // If it has an Email column, that is used; otherwise <idColumn>@<domain>.
+  email: {
+    domain: 'lbschools.net',      // student addresses must end with this
+    idColumn: 'SIS User ID',      // roster column holding the part before the @
+    testLimit: 3,                 // a test run sends at most this many, all to you
+    // {first}, {name}, {assignment}, {score} are filled in for each student.
+    subject: '{assignment}: your score and correction sheet',
+    intro: 'Hi {first},\n\n'
+      + 'Your program for {assignment} has been graded: {score}. Your correction sheet is attached. '
+      + 'Make each fix on the list, highlight your changes, and turn in a printed copy.\n\n'
+      + 'Your feedback:',
+  },
 };
