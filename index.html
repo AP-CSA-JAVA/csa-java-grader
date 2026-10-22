@@ -63,6 +63,7 @@
           <button id="gradeBtn" class="btn btn-primary" type="button">Grade all</button>
           <button id="printBtn" class="btn" type="button" disabled title="One PDF, two pages per student — print double-sided">Print correction sheets</button>
           <button id="summaryBtn" class="btn" type="button" disabled title="For you: every student's scores and the most common mistakes, in one PDF">Class summary (PDF)</button>
+          <button id="emailBtn" class="btn" type="button" disabled title="Send each student their feedback and correction sheet">Email students</button>
           <button id="exportBtn" class="btn" type="button" disabled>Export CSV</button>
           <button id="clearBtn" class="btn btn-quiet" type="button" title="Forget saved results for this zip">Clear saved</button>
         </div>
@@ -100,7 +101,8 @@
           <li><b>Correction sheets</b> — a printable PDF for each student (at most two pages) with the suggested score, a numbered fix list and the style notes. <b>Print correction sheets</b> makes one PDF for the whole class, two pages per student, so printing double-sided gives one sheet of paper each.</li>
           <li><b>Class summary</b> — a PDF for you, not the students: the class average and score spread, every student's three columns, header deduction, suggested and final score, and the most common program and style mistakes with who made them. Save one after each grading run as a record.</li>
           <li><b>Assignments</b> — only “Any assignment” is built in. Your assignment files live in your private repository: download it as a zip (Code → Download ZIP) and click <b>Load assignments</b>. They're kept in this browser only; load the zip again after editing an assignment or on another computer.</li>
-          <li>Everything runs in this browser tab. Student code is never uploaded anywhere. Results are saved in this browser so a reload picks up where it left off.</li>
+          <li><b>Email students</b> — sends each student their feedback and correction sheet through your own Google Apps Script mailer (set up once; see EMAIL-SETUP.md). Load a Canvas gradebook export as the roster so each student is matched to an email address by Canvas ID. A test run sends to you first, and the mailer's sent log stops a student from getting the same assignment twice.</li>
+          <li>Everything runs in this browser tab. Student code is never uploaded anywhere, except in the emails you choose to send. Results are saved in this browser so a reload picks up where it left off.</li>
         </ul>
       </details>
     </section>
@@ -113,6 +115,56 @@
     </a>
     <p class="muted small">ap-csa-java · Free, non-commercial educational use under the <a href="https://cheerpj.com/licensing" target="_blank" rel="noopener">CheerpJ Community Licence</a></p>
   </footer>
+
+  <dialog id="emailDialog" class="email-dialog" aria-labelledby="emailTitle">
+    <div class="em-head">
+      <h2 id="emailTitle">Email students</h2>
+      <button id="emailClose" class="btn btn-quiet" type="button" aria-label="Close">✕</button>
+    </div>
+
+    <div class="em-settings">
+      <label>Mailer URL
+        <input id="mailerUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
+      </label>
+      <label>Mailer key
+        <input id="mailerKey" type="password" placeholder="Kept for this tab only" autocomplete="off">
+      </label>
+      <div class="em-inline">
+        <button id="mailerPing" class="btn btn-small" type="button">Test connection</button>
+        <span id="mailerPingText" class="muted small"></span>
+      </div>
+      <div class="em-inline">
+        <button id="rosterBtn" class="btn btn-small" type="button" title="Canvas → Grades → Export → Export Current Gradebook View">Load roster</button>
+        <span id="rosterText" class="muted small"></span>
+        <button id="rosterClear" class="btn btn-small btn-quiet" type="button" hidden>Remove</button>
+        <input id="rosterInput" type="file" accept=".csv" hidden>
+      </div>
+    </div>
+
+    <div class="em-options">
+      <label class="em-check em-test"><input id="emailTest" type="checkbox" checked> Test run: send to me, not the students</label>
+      <label class="em-check"><input id="emailAttach" type="checkbox" checked> Attach the correction sheet (PDF)</label>
+    </div>
+
+    <div class="em-table-wrap">
+      <table class="em-table">
+        <thead><tr>
+          <th><input id="emailAll" type="checkbox" aria-label="Select all"></th>
+          <th>Student</th><th>Email</th><th>Score</th><th>Status</th>
+        </tr></thead>
+        <tbody id="emailBody"></tbody>
+      </table>
+    </div>
+
+    <p id="emailNote" class="em-note" role="status"></p>
+    <div class="em-foot">
+      <span id="emailCount" class="muted small"></span>
+      <span>
+        <button id="emailStop" class="btn" type="button" hidden>Stop</button>
+        <button id="emailSend" class="btn btn-primary" type="button" disabled>Send</button>
+      </span>
+    </div>
+  </dialog>
 
   <!-- CheerpJ writes anything Java prints here; the grader reads it when something goes wrong -->
   <pre id="console" hidden></pre>
