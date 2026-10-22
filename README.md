@@ -1,6 +1,6 @@
 # CSA Java Grader
 
-Grades AP CSA Java submissions straight from a Canvas **Download Submissions** zip. Everything runs in the browser tab: student code is never uploaded anywhere.
+Grades AP CSA Java submissions straight from a Canvas **Download Submissions** zip. Everything runs in the browser tab: student code is never uploaded anywhere. The one exception is **Email students**, which sends only the emails you choose, through your own Google account.
 
 For each student it shows the rubric columns separately:
 
@@ -29,6 +29,8 @@ Every number above lives in `js/config.js`.
 4. Open a row for the details and the student feedback. **Copy for Canvas** copies the feedback for a SpeedGrader comment. **Export CSV** saves every score and comment.
 5. **Print correction sheets** makes one PDF for the class: at most two pages per student (suggested score, a numbered fix list with checkboxes, style notes), padded so a double-sided print is one sheet of paper each. Each row also has its own **Correction sheet (PDF)** button for reprints.
 6. **Class summary (PDF)** makes one landscape PDF for you, not the students: the class average and score spread, a table of every student's Compilation & Output, Documentation & Style and Submission scores with the header deduction, suggested and final score, and the most common program and style mistakes across the class with who made them. Save one after each grading run as a record.
+
+7. **Email students** sends each student their feedback and correction sheet from your school Google account. It needs a one-time setup (a small Google Apps Script mailer and a Canvas gradebook export as the roster): see [EMAIL-SETUP.md](EMAIL-SETUP.md). A test run sends to you first, and nobody gets the same assignment twice.
 
 Results are saved in your browser. If a reload is needed, drop the same zip again and it continues where it left off. **Clear saved** starts over.
 
