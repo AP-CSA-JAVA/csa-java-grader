@@ -73,15 +73,30 @@ export const CONFIG = {
   // Addresses come from the roster you load (a Canvas gradebook export).
   // If it has an Email column, that is used; otherwise <idColumn>@<domain>.
   email: {
+    course: 'AP CSA',             // shown as [AP CSA] in every subject line (the PEP 8 Checker uses [AP CSP])
     mailerUrl: 'https://script.google.com/macros/s/AKfycbwzu5C7JpTc9tz7q3snwHNZ2bo1ngnOjdJa3o8zWRuZScn5AWNH5xDAR_Y-7dBNhclgaw/exec',
     domain: 'lbschools.net',      // student addresses must end with this
     idColumn: 'SIS Login ID',      // roster column holding the part before the @
     testLimit: 3,                 // a test run sends at most this many, all to you
-    // {first}, {name}, {assignment}, {score} are filled in for each student.
-    subject: '{assignment}: your score and correction sheet',
+    // {first}, {name}, {assignment}, {score}, {course}, {files} are filled in for each student.
+    subject: '[{course}] {assignment}: your score and correction sheet',
     intro: 'Hi {first},\n\n'
       + 'Your program for {assignment} has been graded: {score}. Your correction sheet is attached. '
       + 'Make each fix on the list, highlight your changes, and turn in a printed copy.\n\n'
       + 'Your feedback:',
+    // Turned in files, but no .java file (a screenshot, a .docx, ...). No PDF is attached.
+    noFile: {
+      subject: '[{course}] {assignment}: we didn’t get your .java file',
+      intro: 'Hi {first},\n\n'
+        + 'For {assignment}, Canvas received {files}, but this assignment needs your program as a .java file, '
+        + 'so it couldn’t be graded. Please resubmit your .java file on Canvas.',
+    },
+    // On the roster, nothing turned in. These rows start unchecked.
+    missing: {
+      subject: '[{course}] {assignment}: no submission received',
+      intro: 'Hi {first},\n\n'
+        + 'Canvas shows no submission from you for {assignment}. Please turn in your .java file as soon as you can. '
+        + 'If you think this is a mistake, let me know.',
+    },
   },
 };

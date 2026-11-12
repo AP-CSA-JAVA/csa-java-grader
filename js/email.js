@@ -26,6 +26,10 @@ const SENT_PREFIX = 'grader:sent:';
 
 const E = CONFIG.email;
 
+// The mailer refuses to send the same assignment slug to a student twice, so notices get their own
+// slug: a "no .java" reminder never blocks the real correction sheet once the student resubmits.
+const KIND_SUFFIX = { graded: '', nofile: ' (no .java)', missing: ' (no submission)' };
+
 /**
  * @param {object} app
  *   getStudents(), getResult(key), getFinal(key), outSpec(),
@@ -46,9 +50,14 @@ export function initEmail(app) {
   let stopAsked = false;
 
   // Settings from mailer.js in the private assignments zip win; otherwise what was typed here.
+  const courseEl = $('emailCourse');
+  if (courseEl) courseEl.textContent = `[${E.course}]`;
+
   function fillSettings() {
     const pm = app.privateMailer?.();
-    els.url.value = pm?.url || localGet(URL_KEY) || '';
+    // A browser can autofill a saved login here; anything that isn't an https URL is dropped.
+    const saved = localGet(URL_KEY) || '';
+    els.url.value = pm?.url || (/^https:\/\//.test(saved) ? saved : '');
     els.key.value = pm?.key || sessionGet(KEY_KEY) || '';
     els.url.title = els.key.title = pm ? 'Filled in from mailer.js in your assignments zip' : '';
   }
@@ -118,25 +127,45 @@ export function initEmail(app) {
   function rowsData() {
     const roster = localGetJSON(ROSTER_KEY);
     const spec = app.outSpec();
-    const sent = sentLog(spec);
-    return app.getStudents().map((st) => {
+    const logs = { graded: sentLog(spec, 'graded'), nofile: sentLog(spec, 'nofile'), missing: sentLog(spec, 'missing') };
+    const addressProblem = (entry) => (!roster ? 'Load a roster'
+      : !entry ? 'Not on roster'
+      : !entry.email ? 'No email on roster'
+      : !emailAllowed(entry.email) ? `Not an @${E.domain} address` : '');
+
+    const students = app.getStudents();
+    const rows = students.map((st) => {
       const r = app.getResult(st.key);
       const entry = roster?.rows[st.key];
-      const d = { st, r, entry, sentAt: sent[st.key]?.at || null, problem: '', warn: '' };
+      const kind = r && r.submission && !r.submission.hasJava ? 'nofile' : 'graded';
+      const d = { st, r, entry, kind, sentAt: logs[kind][st.key]?.at || null, problem: '', warn: '' };
       if (!r) d.problem = 'Not graded';
       else if (!r.scores) d.problem = 'Marked CHECK';
-      else if (!roster) d.problem = 'Load a roster';
-      else if (!entry) d.problem = 'Not on roster';
-      else if (!entry.email) d.problem = 'No email on roster';
-      else if (!emailAllowed(entry.email)) d.problem = `Not an @${E.domain} address`;
-      else if (!sameName(st.name, entry.keys)) d.warn = 'Roster name differs';
-      if (r?.scores) {
+      else d.problem = addressProblem(entry);
+      if (!d.problem && !sameName(st.name, entry.keys)) d.warn = 'Roster name differs';
+      if (r?.scores && kind === 'graded') {
         const s = r.scores;
         const fin = app.getFinal(st.key);
         d.score = s.mode === 'points' ? `${fin ?? s.points}/${s.maxPoints}` : `${fin ?? s.suggested}/5`;
       }
       return d;
     });
+
+    // On the roster, nothing in the zip. Only for a real Canvas zip (numeric Canvas IDs),
+    // so a folder of loose files doesn't list the whole class as missing.
+    const fromCanvas = students.some((st) => /^\d+$/.test(st.key));
+    if (roster && fromCanvas) {
+      const turnedIn = new Set(students.map((st) => st.key));
+      const absent = Object.entries(roster.rows).filter(([id]) => !turnedIn.has(id))
+        .sort((x, y) => (x[1].name || '').localeCompare(y[1].name || ''));
+      for (const [id, entry] of absent) {
+        rows.push({
+          st: { key: id, name: entry.name || id, files: [] }, r: null, entry, kind: 'missing',
+          sentAt: logs.missing[id]?.at || null, problem: addressProblem(entry), warn: '',
+        });
+      }
+    }
+    return rows;
   }
 
   function renderRows() {
@@ -145,10 +174,13 @@ export function initEmail(app) {
     for (const d of data) {
       const tr = document.createElement('tr');
       tr.dataset.key = d.st.key;
+      tr.dataset.kind = d.kind;
       const can = !d.problem;
-      const checked = can && !d.warn && !d.sentAt;
+      // "No submission" reminders start unchecked: the roster can hold students who dropped or are excused.
+      const checked = can && !d.warn && !d.sentAt && d.kind !== 'missing';
+      const showRosterName = d.entry?.name && d.kind !== 'missing';
       tr.innerHTML = `<td><input type="checkbox" ${can ? '' : 'disabled'} ${checked ? 'checked' : ''} aria-label="Send to ${esc(d.st.name)}"></td>`
-        + `<td class="em-name">${esc(d.st.name)}${d.entry?.name ? `<div class="muted small">${esc(d.entry.name)}</div>` : ''}</td>`
+        + `<td class="em-name">${esc(d.st.name)}${showRosterName ? `<div class="muted small">${esc(d.entry.name)}</div>` : ''}</td>`
         + `<td class="em-addr">${esc(d.entry?.email || '—')}</td>`
         + `<td>${esc(d.score || '—')}</td>`
         + `<td class="em-status">${statusHtml(d)}</td>`;
@@ -160,14 +192,17 @@ export function initEmail(app) {
   }
 
   function statusHtml(d) {
-    if (d.problem) return `<span class="em-bad">${esc(d.problem)}</span>`;
+    const tag = d.kind === 'nofile' ? 'No .java file' : d.kind === 'missing' ? 'No submission' : '';
+    if (d.problem) return `<span class="em-bad">${tag ? `${esc(tag)} · ` : ''}${esc(d.problem)}</span>`;
     if (d.warn) return `<span class="em-warn" title="Check that this is the same student before sending">${esc(d.warn)}</span>`;
-    if (d.sentAt) return `<span class="muted">Sent ${esc(new Date(d.sentAt).toLocaleDateString())}</span>`;
+    if (d.sentAt) return `<span class="muted">${tag ? `${esc(tag)} · ` : ''}Sent ${esc(new Date(d.sentAt).toLocaleDateString())}</span>`;
+    if (d.kind === 'nofile') return '<span class="em-warn">No .java file: resubmit email</span>';
+    if (d.kind === 'missing') return '<span class="em-warn">No submission: reminder email</span>';
     return '<span class="muted">Ready</span>';
   }
 
   function selectedKeys() {
-    return [...els.body.querySelectorAll('tr')].filter((tr) => tr.querySelector('input:checked')).map((tr) => tr.dataset.key);
+    return [...els.body.querySelectorAll('tr')].filter((tr) => tr.querySelector('input:checked')).map((tr) => `${tr.dataset.kind}:${tr.dataset.key}`);
   }
 
   function updateCount() {
@@ -182,8 +217,12 @@ export function initEmail(app) {
     els.send.disabled = sending || !n;
   }
 
-  function setStatus(key, html) {
-    const cell = els.body.querySelector(`tr[data-key="${cssEscape(key)}"] .em-status`);
+  function rowFor(id) {
+    const [kind, key] = [id.slice(0, id.indexOf(':')), id.slice(id.indexOf(':') + 1)];
+    return els.body.querySelector(`tr[data-kind="${kind}"][data-key="${cssEscape(key)}"]`);
+  }
+  function setStatus(id, html) {
+    const cell = rowFor(id)?.querySelector('.em-status');
     if (cell) cell.innerHTML = html;
   }
 
@@ -198,37 +237,39 @@ export function initEmail(app) {
 
     const spec = app.outSpec();
     const roster = localGetJSON(ROSTER_KEY);
-    const data = new Map(rowsData().map((d) => [d.st.key, d]));
+    const data = new Map(rowsData().map((d) => [`${d.kind}:${d.st.key}`, d]));
     sending = true; stopAsked = false;
     els.stop.hidden = false; els.stop.disabled = false; els.close.disabled = true;
     updateCount();
     let ok = 0; let failed = 0; let skipped = 0;
 
-    for (const key of keys) {
+    for (const id of keys) {
       if (stopAsked) break;
-      const d = data.get(key);
+      const d = data.get(id);
+      if (!d || d.problem) continue;
+      const key = d.st.key;
       const entry = roster.rows[key];
-      setStatus(key, '<span class="spinner"></span>Sending…');
+      setStatus(id, '<span class="spinner"></span>Sending…');
       try {
-        const msg = buildMessage(d.r, entry, spec, test);
+        const msg = buildMessage(d, entry, spec, test);
         const res = await post(msg);
         if (res.status === 'duplicate') {
           skipped++;
-          setStatus(key, `<span class="muted">Already sent ${esc(res.sentAt ? new Date(res.sentAt).toLocaleDateString() : '')} (skipped)</span>`);
-          markSent(spec, key, entry.email, res.sentAt);
+          setStatus(id, `<span class="muted">Already sent ${esc(res.sentAt ? new Date(res.sentAt).toLocaleDateString() : '')} (skipped)</span>`);
+          markSent(spec, key, entry.email, res.sentAt, d.kind);
         } else if (res.status === 'test') {
           ok++;
-          setStatus(key, `<span class="em-ok">Test sent to ${esc(res.to)}</span>`);
+          setStatus(id, `<span class="em-ok">Test sent to ${esc(res.to)}</span>`);
         } else {
           ok++;
-          markSent(spec, key, entry.email);
-          setStatus(key, '<span class="em-ok">Sent</span>');
-          const cb = els.body.querySelector(`tr[data-key="${cssEscape(key)}"] input`);
+          markSent(spec, key, entry.email, null, d.kind);
+          setStatus(id, '<span class="em-ok">Sent</span>');
+          const cb = rowFor(id)?.querySelector('input');
           if (cb) cb.checked = false;
         }
       } catch (err) {
         failed++;
-        setStatus(key, `<span class="em-bad">${esc(err.message)}</span>`);
+        setStatus(id, `<span class="em-bad">${esc(err.message)}</span>`);
         if (err.fatal) break;                  // wrong key / bad URL: don't keep trying
       }
     }
@@ -240,26 +281,35 @@ export function initEmail(app) {
       + (test && ok ? ' Check your inbox, then uncheck “Test run” to send to students.' : '');
   });
 
-  function buildMessage(r, entry, spec, test) {
-    const fin = app.getFinal(r.key);
-    const s = r.scores;
+  function buildMessage(d, entry, spec, test) {
+    const { r, kind } = d;
     const vars = {
       first: entry.first || 'there',
-      name: entry.name || r.name,
+      name: entry.name || d.st.name,
       assignment: app.specTitle(spec),
-      score: s.mode === 'points' ? `${fin ?? s.points}/${s.maxPoints}` : `${fin ?? s.suggested}/5`,
+      course: E.course,
+      score: d.score || '',
+      files: (d.st.files || []).map((f) => f.name).join(', ') || 'other files',
     };
     const fill = (t) => t.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
     const msg = {
       action: 'send',
       test,
-      assignment: app.specSlug(spec),
-      canvasId: r.key,
+      course: E.course,
+      assignment: app.specSlug(spec) + KIND_SUFFIX[kind],
+      canvasId: d.st.key,
       student: vars.name,
       to: entry.email,
-      subject: fill(E.subject),
-      body: `${fill(E.intro)}\n\n${app.feedbackText(r, spec, fin)}`,
     };
+    if (kind !== 'graded') {
+      const t = kind === 'nofile' ? E.noFile : E.missing;
+      msg.subject = fill(t.subject);
+      msg.body = fill(t.intro);
+      return msg;                                // nothing to attach
+    }
+    const fin = app.getFinal(r.key);
+    msg.subject = fill(E.subject);
+    msg.body = `${fill(E.intro)}\n\n${app.feedbackText(r, spec, fin)}`;
     if (els.attach.checked) {
       const uri = app.studentPdf(r, spec).output('datauristring');
       msg.pdfName = app.sheetFileName(r, spec).replace(/^[^_]+_(?:late_)?\d+_\d+_/i, '');
@@ -384,13 +434,13 @@ function parseCsv(text) {
 // Local sent log (the mailer keeps the real one in its Google Sheet)
 // ---------------------------------------------------------------------
 
-function sentLog(spec) { return localGetJSON(SENT_PREFIX + slugOf(spec)) || {}; }
-function markSent(spec, key, to, at = null) {
-  const log = sentLog(spec);
+function sentLog(spec, kind = 'graded') { return localGetJSON(SENT_PREFIX + slugOf(spec, kind)) || {}; }
+function markSent(spec, key, to, at = null, kind = 'graded') {
+  const log = sentLog(spec, kind);
   log[key] = { to, at: at || new Date().toISOString() };
-  localSetJSON(SENT_PREFIX + slugOf(spec), log);
+  localSetJSON(SENT_PREFIX + slugOf(spec, kind), log);
 }
-function slugOf(spec) { return String(spec.displayTitle || spec.id); }
+function slugOf(spec, kind = 'graded') { return String(spec.displayTitle || spec.id) + KIND_SUFFIX[kind]; }
 
 function fatal(msg) { const e = new Error(msg); e.fatal = true; return e; }
 function cssEscape(s) { return window.CSS?.escape ? CSS.escape(s) : String(s).replace(/"/g, '\\"'); }

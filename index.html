@@ -124,10 +124,10 @@
 
     <div class="em-settings">
       <label>Mailer URL
-        <input id="mailerUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
+        <input id="mailerUrl" name="mailer-url" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
       </label>
       <label>Mailer key
-        <input id="mailerKey" type="password" placeholder="Kept for this tab only" autocomplete="off">
+        <input id="mailerKey" name="mailer-key" type="password" placeholder="Kept for this tab only" autocomplete="new-password">
       </label>
       <div class="em-inline">
         <button id="mailerPing" class="btn btn-small" type="button">Test connection</button>
@@ -140,6 +140,9 @@
         <input id="rosterInput" type="file" accept=".csv" hidden>
       </div>
     </div>
+
+    <p class="muted small em-course-note">One mailer serves both AP CSA and AP CSP. Emails from this grader are tagged <strong id="emailCourse">[AP CSA]</strong> in the subject.
+      Students who turned in no <code>.java</code> file get a short “please resubmit” email; roster students with <strong>no submission</strong> are listed at the bottom, unchecked, so you can tick the ones to remind.</p>
 
     <div class="em-options">
       <label class="em-check em-test"><input id="emailTest" type="checkbox" checked> Test run: send to me, not the students</label>

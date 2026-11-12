@@ -229,6 +229,7 @@ details.run summary { cursor: pointer; font-size: 0.82rem; color: var(--muted); 
   background: var(--bg); color: var(--ink); min-width: 0;
 }
 .em-inline { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.em-course-note { margin: 0; padding: 8px 18px 0; line-height: 1.45; }
 .em-options { display: flex; gap: 8px 20px; flex-wrap: wrap; padding: 10px 18px; }
 .em-check { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
 .em-test { font-weight: 600; color: var(--s3); }
