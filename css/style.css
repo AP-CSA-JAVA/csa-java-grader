@@ -243,4 +243,9 @@ details.run summary { cursor: pointer; font-size: 0.82rem; color: var(--muted); 
 .em-warn { color: var(--s3); font-weight: 600; }
 .em-bad { color: var(--s2); }
 .em-note { margin: 0; padding: 8px 18px 0; font-size: 0.88rem; min-height: 1.2em; }
+/* ---------- Canvas grades dialog (reuses the email dialog styles) ---------- */
+.cg-wide { grid-column: 1 / -1; }
+.cg-wide[hidden], #cgScaleWrap[hidden] { display: none; }
+.cg-wide input[type=text] { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+.cg-skip td { color: var(--muted); }
 @media (max-width: 600px) { .em-settings { grid-template-columns: 1fr; } }

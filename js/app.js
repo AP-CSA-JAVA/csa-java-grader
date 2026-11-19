@@ -12,6 +12,7 @@ import { startJava, compileStudent, compileDriver, runStudent, harnessVersion } 
 import { studentPdf, classPdf, sheetFileName } from './report-pdf.js';
 import { summaryPdf, summaryFileName } from './summary-pdf.js';
 import { initEmail } from './email.js';
+import { initCanvasGrades } from './canvas-grades.js';
 
 const $ = (id) => document.getElementById(id);
 const els = {
@@ -20,7 +21,7 @@ const els = {
   progressBar: $('progressBar'), banner: $('banner'), body: $('resultsBody'),
   specSourceText: $('specSourceText'), loadSpecsBtn: $('loadSpecsBtn'), clearSpecsBtn: $('clearSpecsBtn'), specFileInput: $('specFileInput'),
   gradeBtn: $('gradeBtn'), exportBtn: $('exportBtn'), clearBtn: $('clearBtn'), printBtn: $('printBtn'), summaryBtn: $('summaryBtn'),
-  emailBtn: $('emailBtn'),
+  emailBtn: $('emailBtn'), canvasBtn: $('canvasBtn'),
 };
 
 const state = {
@@ -538,6 +539,7 @@ function updateButtons() {
   els.printBtn.disabled = state.grading || ![...state.results.values()].some((r) => r.scores);
   els.summaryBtn.disabled = els.printBtn.disabled;
   els.emailBtn.disabled = els.printBtn.disabled;
+  els.canvasBtn.disabled = els.printBtn.disabled;
   els.clearBtn.disabled = state.grading;
 }
 
@@ -591,6 +593,20 @@ initEmail({
   specTitle: (spec) => specTitle(spec, ' '),
   escapeHtml,
   privateMailer,
+});
+
+// ---------------------------------------------------------------------
+// Canvas grades (js/canvas-grades.js): CSV for Canvas → Grades → Import
+// ---------------------------------------------------------------------
+
+initCanvasGrades({
+  getStudents: () => state.students,
+  getResult: (key) => state.results.get(key),
+  getFinal: (key) => state.finals.get(key),
+  outSpec,
+  specTitle: (spec) => specTitle(spec, ' '),
+  specSlug,
+  escapeHtml,
 });
 
 // ---------------------------------------------------------------------
