@@ -64,6 +64,7 @@
           <button id="printBtn" class="btn" type="button" disabled title="One PDF, two pages per student — print double-sided">Print correction sheets</button>
           <button id="summaryBtn" class="btn" type="button" disabled title="For you: every student's scores and the most common mistakes, in one PDF">Class summary (PDF)</button>
           <button id="emailBtn" class="btn" type="button" disabled title="Send each student their feedback and correction sheet">Email students</button>
+          <button id="canvasBtn" class="btn" type="button" disabled title="A CSV for Canvas → Grades → Import, built from your gradebook export">Canvas grades</button>
           <button id="exportBtn" class="btn" type="button" disabled>Export CSV</button>
           <button id="clearBtn" class="btn btn-quiet" type="button" title="Forget saved results for this zip">Clear saved</button>
         </div>
@@ -102,6 +103,7 @@
           <li><b>Class summary</b> — a PDF for you, not the students: the class average and score spread, every student's three columns, header deduction, suggested and final score, and the most common program and style mistakes with who made them. Save one after each grading run as a record.</li>
           <li><b>Assignments</b> — only “Any assignment” is built in. Your assignment files live in your private repository: download it as a zip (Code → Download ZIP) and click <b>Load assignments</b>. They're kept in this browser only; load the zip again after editing an assignment or on another computer.</li>
           <li><b>Email students</b> — sends each student their feedback and correction sheet through your own Google Apps Script mailer (set up once; see EMAIL-SETUP.md). Load a Canvas gradebook export as the roster so each student is matched to an email address by Canvas ID. A test run sends to you first, and the mailer's sent log stops a student from getting the same assignment twice.</li>
+          <li><b>Canvas grades</b> — makes a CSV for Canvas → Grades → Import. Load your gradebook export (Grades → Export → Export Current Gradebook View) and pick the assignment column; names, IDs, SIS IDs and sections are copied from it, and the column keeps its Canvas ID so the existing assignment is updated. Only graded students are in the file, using the Final score. If the Canvas assignment is worth more than the grader's 5 points, you can scale the scores to it. Canvas shows every change for you to approve before it saves.</li>
           <li>Everything runs in this browser tab. Student code is never uploaded anywhere, except in the emails you choose to send. Results are saved in this browser so a reload picks up where it left off.</li>
         </ul>
       </details>
@@ -166,6 +168,44 @@
         <button id="emailStop" class="btn" type="button" hidden>Stop</button>
         <button id="emailSend" class="btn btn-primary" type="button" disabled>Send</button>
       </span>
+    </div>
+  </dialog>
+
+  <dialog id="canvasDialog" class="email-dialog" aria-labelledby="canvasTitle">
+    <div class="em-head">
+      <h2 id="canvasTitle">Canvas grades</h2>
+      <button id="canvasClose" class="btn btn-quiet" type="button" aria-label="Close">✕</button>
+    </div>
+
+    <div class="em-settings">
+      <div class="em-inline">
+        <button id="cgRosterBtn" class="btn btn-small" type="button" title="Canvas → Grades → Export → Export Current Gradebook View">Load gradebook</button>
+        <span id="cgRosterText" class="muted small"></span>
+        <input id="cgRosterInput" type="file" accept=".csv" hidden>
+      </div>
+      <label class="cg-wide">Canvas assignment column
+        <select id="cgAssignment" class="select"></select>
+      </label>
+      <label id="cgNewWrap" class="cg-wide" hidden>New assignment name
+        <input id="cgNewName" type="text" autocomplete="off">
+      </label>
+    </div>
+
+    <div id="cgScaleWrap" class="em-options" hidden>
+      <label class="em-check"><input id="cgScale" type="checkbox"> <span id="cgScaleText"></span></label>
+    </div>
+
+    <div class="em-table-wrap">
+      <table class="em-table">
+        <thead><tr><th>Student</th><th>Section</th><th>Final</th><th>To Canvas</th><th>Status</th></tr></thead>
+        <tbody id="cgBody"></tbody>
+      </table>
+    </div>
+
+    <p id="cgNote" class="em-note" role="status"></p>
+    <div class="em-foot">
+      <span id="cgCount" class="muted small"></span>
+      <button id="cgDownload" class="btn btn-primary" type="button" disabled>Download CSV</button>
     </div>
   </dialog>
 

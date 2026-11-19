@@ -361,6 +361,22 @@ export function parseRoster(text, source = 'roster.csv') {
   if (idCol < 0) throw new Error('No “ID” column found. Use Canvas → Grades → Export → Export Current Gradebook View.');
   if (emailCol < 0 && sisCol < 0) throw new Error(`No “Email” or “${E.idColumn}” column found in the roster.`);
 
+  // Kept for the Canvas grade import (js/canvas-grades.js).
+  const sisUserCol = col('SIS User ID');
+  const sisLoginCol = col('SIS Login ID');
+  const sectionCol = col('Section');
+  const cell = (row, i) => (i >= 0 ? (row[i] || '').trim() : '');
+
+  // Assignment columns look like "1.11.2 Race Car (123456)". The "Points Possible" row holds their points.
+  const pointsRow = rows.slice(1).find((r) => /points possible/i.test(cell(r, nameCol >= 0 ? nameCol : 0)));
+  const assignments = [];
+  rows[0].forEach((h, i) => {
+    const m = String(h).trim().match(/^(.*\S)\s*\((\d+)\)$/);
+    if (!m || i === idCol) return;
+    const pts = pointsRow ? parseFloat(cell(pointsRow, i)) : NaN;
+    assignments.push({ header: String(h).trim(), name: m[1], canvasId: m[2], points: Number.isFinite(pts) ? pts : null });
+  });
+
   const out = {};
   for (const row of rows.slice(1)) {
     const id = (row[idCol] || '').trim();
@@ -371,10 +387,13 @@ export function parseRoster(text, source = 'roster.csv') {
       const v = (row[sisCol] || '').trim();
       email = v.includes('@') ? v : v ? `${v}@${E.domain}` : '';
     }
-    out[id] = { name: displayName(name), first: firstName(name), keys: nameKeys(name), email: email.toLowerCase() };
+    out[id] = {
+      name: displayName(name), first: firstName(name), keys: nameKeys(name), email: email.toLowerCase(),
+      canvas: { student: name, sisUser: cell(row, sisUserCol), sisLogin: cell(row, sisLoginCol), section: cell(row, sectionCol) },
+    };
   }
   if (!Object.keys(out).length) throw new Error('No students found in that roster.');
-  return { source, loadedAt: Date.now(), rows: out };
+  return { source, loadedAt: Date.now(), rows: out, assignments };
 }
 
 /** "Smith, Jordan" -> "Jordan Smith" */
