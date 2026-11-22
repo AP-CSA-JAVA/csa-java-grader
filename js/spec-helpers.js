@@ -173,6 +173,57 @@ export function outputLines(stdout) {
   return String(stdout ?? '').replace(/\r/g, '').split('\n').map((l) => l.trim()).filter(Boolean);
 }
 
+/**
+ * Compares program output with the expected output, line by line.
+ * Exact match unless you turn options on (per assignment):
+ *   firstLines:  a number N, or true to use the number of expected lines.
+ *                Only the first N lines are compared; extra lines after them
+ *                (a student's debug print, an extra "Goodbye!") are ignored.
+ *   ignoreBlank: skip blank lines and ignore spaces at the end of a line.
+ *                Applied BEFORE firstLines, so an extra blank line near the
+ *                top doesn't push a real line past the cutoff.
+ *   ignoreCase:  capitalization doesn't matter.
+ * Returns { pass, detail, line, want, got, extra }:
+ *   line  — 1-based number of the first line that differs (0 when it passes)
+ *   extra — how many lines after the first N were ignored
+ * Use it in a check:
+ *   const m = outputMatches(result.stdout, EXPECTED, { firstLines: true, ignoreBlank: true });
+ *   check('Output matches the sample', m.pass, m.detail);
+ */
+export function outputMatches(stdout, expected, { firstLines = null, ignoreBlank = false, ignoreCase = false } = {}) {
+  const prep = (text) => {
+    let lines = String(text ?? '').replace(/\r/g, '').split('\n');
+    if (lines.length && lines[lines.length - 1] === '') lines.pop();   // the newline after the last println
+    if (ignoreBlank) lines = lines.map((l) => l.replace(/[ \t]+$/, '')).filter((l) => l.trim() !== '');
+    return lines;
+  };
+  const same = (a, b) => (ignoreCase ? a.toLowerCase() === b.toLowerCase() : a === b);
+  const want = prep(Array.isArray(expected) ? expected.join('\n') : expected);
+  const got = prep(stdout);
+  const n = firstLines === true ? want.length : (Number.isInteger(firstLines) && firstLines > 0 ? firstLines : null);
+
+  const wantCmp = n ? want.slice(0, n) : want;
+  const gotCmp = n ? got.slice(0, n) : got;
+  const extra = n ? Math.max(0, got.length - n) : 0;
+  const shown = (s) => (s === undefined ? '(nothing)' : `"${s}"`);
+
+  for (let i = 0; i < Math.max(wantCmp.length, gotCmp.length); i++) {
+    if (gotCmp[i] === undefined || wantCmp[i] === undefined || !same(gotCmp[i], wantCmp[i])) {
+      const tooMany = wantCmp[i] === undefined;
+      return {
+        pass: false, line: i + 1, want: wantCmp[i], got: gotCmp[i], extra,
+        detail: tooMany
+          ? `Line ${i + 1}: printed ${shown(gotCmp[i])}, but the expected output ends after line ${i}.`
+          : `Line ${i + 1}: expected ${shown(wantCmp[i])}, printed ${shown(gotCmp[i])}.`,
+      };
+    }
+  }
+  return {
+    pass: true, line: 0, want: undefined, got: undefined, extra,
+    detail: extra ? `${extra} extra line${extra === 1 ? '' : 's'} after line ${n} ignored.` : '',
+  };
+}
+
 /** Do these patterns appear in this order in the output? Returns the first missing one, or null. */
 export function missingInOrder(stdout, patterns) {
   const text = squish(stdout);
