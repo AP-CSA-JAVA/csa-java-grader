@@ -48,13 +48,24 @@ The assignments are kept in this browser only (nothing is uploaded). Load the zi
 
 Adding an assignment and testing changes are explained in the private repository's README.
 
-## FRQ grading (in progress)
+## FRQs
 
-FRQs are being moved here from the desktop FRQ grader, so they can be graded in the browser too, one rubric point at a time.
-So far the grading engine is done: `java/FrqHarness.java` (in `lib/grader-harness.jar`) and `js/frq.js`. Graded on the same
-33 FRQs, it gives the same scores as the desktop grader. **frq-test.html** checks that it works in your browser: run its
-self-test, or load one of your FRQ's files. The FRQ configs, graders and answer keys stay in the private frq-grader repository.
-`test/frq-node.mjs` runs the same code on a desktop JVM.
+FRQs are graded **one rubric point at a time**, like an AP reader would (same scores as the desktop FRQ grader):
+
+1. On GitHub, open the private **frq-grader** repository → **Code → Download ZIP**.
+2. Click **Load assignments** and choose that zip. Your FRQs join the Assignment list (for example *FRQ 5.D: CultureSample … assessed*).
+   They're added next to the assignments you already loaded, not instead of them. Only each FRQ's config, grader and support classes are kept,
+   never the answer keys.
+3. Pick the FRQ, drop the Canvas zip, **Grade all**.
+
+Each student gets a score out of the FRQ's points. Open a row to see every rubric point (✓ / ✗) with the reason a point was lost; the header
+(Name / Period / Assignment) costs 1 point when it's missing. **HAND GRADE** in the notes means the code didn't compile; a point the grader couldn't
+finish shows **?** for you to check. Style issues are listed but not scored. Copy for Canvas, correction sheets, the class summary, Export CSV and
+Email students work as for any other assignment.
+
+After you change an FRQ in frq-grader, download the zip and load it again. `frq-test.html` checks that FRQ grading runs in this browser.
+For checking graders on a computer with Java: `test/frq-node.mjs` (one FRQ, any student files) and `test/frq-page-node.mjs` (the whole page path,
+from the frq-grader zip and a Canvas zip).
 
 ## Good to know
 

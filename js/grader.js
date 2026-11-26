@@ -12,6 +12,7 @@ import { readHeader } from './header.js';
 import { checkConventions } from './conventions.js';
 import { detectNewerJava, newerJavaSummary, forClass } from './newer-java.js';
 import { STUCK } from './report-pdf.js';
+import { frqHeaderInfo } from './frq.js';
 
 /**
  * @param student  from canvas-zip.js
@@ -108,13 +109,15 @@ export async function gradeStudent(student, spec, java, onStep = () => {}) {
   const headerSource = main || studentSources[0];
 
   // ---------- Header ----------
-  result.header = readHeader(headerSource.text);
+  // FRQs use the FRQ header (Name / Period / Assignment) on the student's class, not the program header.
+  const frqSource = spec.frq ? (studentSources.find((x) => x.cls === spec.mainClass) || headerSource) : null;
+  result.header = spec.frq ? frqHeaderInfo(frqSource.text, spec.headerPenalty || 1) : readHeader(headerSource.text);
 
   // ---------- Style ----------
   result.style = checkConventions(studentSources.map((s) => ({
     name: s.fileName,
     src: s.text,
-    headerEndLine: s === headerSource ? result.header.endLine : 0,
+    headerEndLine: s === (frqSource || headerSource) ? result.header.endLine : 0,
   })));
 
   // ---------- Requirements (code checks) ----------
@@ -214,7 +217,7 @@ export async function gradeStudent(student, spec, java, onStep = () => {}) {
       const stdin = typeof run.stdin === 'function' ? run.stdin(ctx) : (run.stdin || '');
       if (mainClass) {
         try {
-          out = await java.runStudent(result.compile.classDir, mainClass, stdin, CONFIG.runTimeoutMs, CONFIG.maxOutputChars);
+          out = await java.runStudent(result.compile.classDir, mainClass, stdin, run.timeoutMs || CONFIG.runTimeoutMs, CONFIG.maxOutputChars);
         } catch (err) {
           out = { status: 'exception', exception: `Grader error: ${err}`, where: '', stdout: '', stderr: '', ms: 0 };
         }
@@ -227,7 +230,8 @@ export async function gradeStudent(student, spec, java, onStep = () => {}) {
         checks = [{ label: 'Spec error in check()', pass: null, detail: String(err) }];
       }
       // If the program crashed, the rest of that run's checks can't be judged fairly.
-      if (checks.length && checks[0].pass === false) {
+      // (Not for FRQ rubric checks: each point is tested on its own.)
+      if (!run.independentChecks && checks.length && checks[0].pass === false) {
         checks = checks.map((c, i) => (i === 0 ? c : { ...c, pass: null, detail: 'Skipped — this test could not finish.' }));
       }
       result.runs.push({ label: run.label, stdin: run.driver ? '(grader test code — no typing)' : stdin, output: out, checks });
@@ -236,6 +240,7 @@ export async function gradeStudent(student, spec, java, onStep = () => {}) {
 
   // Points-mode projects: no credit for concept items when the program doesn't compile.
   if (spec.mode === 'points' && !result.compile.ok) {
+    if (spec.frq) notes.push('HAND GRADE: the code does not compile, so no rubric point could be tested. AP readers do grade code that does not compile.');
     result.requirements = result.requirements.map((c) => (c.always ? c : { ...c, pass: null, detail: 'Program did not compile — the rubric gives no credit for most concepts. Check by hand.' }));
     if (spec.compileItemLabel) result.requirements.push({ label: spec.compileItemLabel, pass: false, detail: 'Does not compile.', always: true });
   }
@@ -329,14 +334,18 @@ function scorePoints(r, spec) {
   const maxPoints = spec.maxPoints || counted.reduce((t, c) => t + (c.points ?? 1), 0);
   const review = counted.filter((c) => c.pass === null).length;
   const types = r.style.length;
+  // FRQs: the header costs a point, as on the FRQ rubric. `points` is the score after it.
+  const headerDeduction = spec.headerPenalty && r.header?.deduction ? spec.headerPenalty : 0;
+  const net = Math.max(0, points - headerDeduction);
   return {
     mode: 'points',
-    points, maxPoints, review,
-    suggested: points,
+    points: net, maxPoints, review,
+    rubricPoints: points,
+    suggested: net,
     output: r.compile.ok ? 5 : 1,
     style: CONFIG.styleBands.find((b) => types <= b.max).score,
     submission: r.submission.hasJava ? 5 : 1,
-    headerDeduction: 0,
+    headerDeduction,
     checksPassed: counted.filter((c) => c.pass === true).length,
     checksTotal: counted.length,
   };
@@ -367,6 +376,7 @@ export function feedbackText(r, spec, finalScore) {
       lines.push(`${mark} ${c.label}${c.pass !== true && c.detail ? ` — ${c.detail}` : ''}`);
       if (c.pass === false && c.hint) lines.push(`    Hint: ${c.hint}`);
     }
+    if (s.headerDeduction) lines.push(`✗ Program header — missing or incomplete (−${s.headerDeduction})`);
     if (s.review) lines.push('', `? = checked by your teacher (${s.review} item${s.review === 1 ? '' : 's'})`);
     if (!r.compile.ok || [...r.requirements, ...r.runs.flatMap((x) => x.checks)].some((c) => c.pass === false && (c.points ?? 1) > 0)) lines.push('', STUCK);
     if (r.style.length) {

@@ -110,7 +110,7 @@ export function buildSheet(r, spec) {
   if (header && (!header.present || header.blank.length)) {
     sheet.items.push({
       title: header.present ? 'Complete your block comment header' : 'Add the block comment header',
-      detail: header.present ? `Fill in: ${header.blank.join(', ')}` : 'Name, Partner, Course, Instructor, Assignment, Due Date — at the top of your main file.',
+      detail: header.present ? `Fill in: ${header.blank.join(', ')}` : header.missingHint || 'Name, Partner, Course, Instructor, Assignment, Due Date — at the top of your main file.',
     });
   }
   for (const n of r.notes || []) {
