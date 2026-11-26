@@ -59,9 +59,12 @@ function fillSpecs(want) {
   els.specSelect.value = (match || list[0]).key;
 
   const info = privateInfo();
+  const parts = [];
+  if (info?.count) parts.push(`${info.count} assignment${info.count === 1 ? '' : 's'}${info.mailer ? ' and mailer settings' : ''} from ${info.source}`);
+  if (info?.frqs) parts.push(`${info.frqs} FRQ${info.frqs === 1 ? '' : 's'} from ${info.frqSource}`);
   els.specSourceText.textContent = info
-    ? `${info.count} assignment${info.count === 1 ? '' : 's'}${info.mailer ? ' and mailer settings' : ''} from ${info.source}, loaded ${new Date(info.loadedAt).toLocaleDateString()}`
-    : 'Only “Any assignment” is built in. Load your assignments zip to grade with tests.';
+    ? `${parts.join('; ')}, loaded ${new Date(info.loadedAt).toLocaleDateString()}`
+    : 'Only “Any assignment” is built in. Load your assignments zip (and the frq-grader zip for FRQs) to grade with tests.';
   els.clearSpecsBtn.hidden = !info;
 }
 
@@ -92,12 +95,16 @@ els.specFileInput.addEventListener('change', async () => {
   els.loadSpecsBtn.disabled = true;
   els.specSourceText.textContent = 'Reading assignments…';
   try {
-    const { count, skipped } = await loadPrivate(files, window.JSZip);
+    const { count, skipped, frqs, frqProblems } = await loadPrivate(files, window.JSZip);
     hideBanner();
     const current = els.specSelect.value;
     fillSpecs(current);
     await chooseSpec(els.specSelect.value);
-    if (skipped) showBanner(`Loaded ${count} assignments. ${skipped} listed in index.js could not be found in the zip.`);
+    const msgs = [];
+    if (skipped) msgs.push(`Loaded ${count} assignments. ${skipped} listed in index.js could not be found in the zip.`);
+    if (frqs) msgs.push(`Loaded ${frqs} FRQ${frqs === 1 ? '' : 's'}; pick one from the Assignment list.`);
+    if (frqProblems?.length) msgs.push(`Some FRQs were skipped: ${frqProblems.join('; ')}.`);
+    if (msgs.length) showBanner(escapeHtml(msgs.join(' ')));
   } catch (err) {
     console.error(err);
     fillSpecs(els.specSelect.value);
@@ -232,7 +239,9 @@ async function gradeAll(onlyKey = null) {
     renderRow(st, { running: 'Starting' });
     updateProgress(st.name);
 
-    const limitMs = ((state.spec.runs?.length || 0) + 2) * CONFIG.runTimeoutMs + 30000;
+    // each run's own limit (FRQ rubric runs get longer), plus compiling, plus slack
+    const runsMs = (state.spec.runs || []).reduce((t, run) => t + (run.timeoutMs || CONFIG.runTimeoutMs), 0);
+    const limitMs = runsMs + 2 * CONFIG.runTimeoutMs + 30000;
     let r;
     try {
       r = await withTimeout(
@@ -481,7 +490,7 @@ function detailsHtml(r) {
       + `<pre class="out"><b>Typed:</b>\n${escapeHtml(truncate(run.stdin, 400))}</pre>`
       + `<pre class="out"><b>Program printed:</b>\n${escapeHtml(truncate(run.output.stdout, 4000)) || '(nothing)'}${run.output.exception ? `\n\n${escapeHtml(run.output.exception)}` : ''}</pre></details>`).join('');
     return `<div class="detail-grid">
-        <div class="detail-box" style="grid-column: span 2"><h3>Rubric — ${r.scores.points} / ${r.scores.maxPoints}</h3>${newerJavaHtml(r)}${compileBox}<ul class="checks">${items.map(checkLi).join('')}</ul>${runs}</div>
+        <div class="detail-box" style="grid-column: span 2"><h3>Rubric — ${r.scores.points} / ${r.scores.maxPoints}</h3>${newerJavaHtml(r)}${compileBox}<ul class="checks">${items.map(checkLi).join('')}${r.scores.headerDeduction ? `<li class="fail">Program header — missing or incomplete<span class="why">−${r.scores.headerDeduction} point</span></li>` : ''}</ul>${runs}</div>
         <div class="detail-box"><h3>Style notes (not scored)</h3>${ds}<h3 style="margin-top:14px">Files</h3>${sub}</div>
       </div>
       ${notes}

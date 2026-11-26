@@ -32,6 +32,28 @@ export function checkFrqHeader(source) {
   return { ok: true, msg: '' };
 }
 
+/**
+ * The FRQ header in the shape js/header.js uses (present, fields, blank, deduction, endLine),
+ * so the rest of the grader can show it. Same rule as checkFrqHeader: a block comment at the
+ * top, with the Name: line filled in if there is one. FRQ headers are Name / Period / Assignment.
+ */
+export function frqHeaderInfo(source, penalty = 1) {
+  const m = /^\s*\/\*([\s\S]*?)\*\//.exec(source);
+  const missingHint = 'A block comment at the very top with Name, Period and Assignment.';
+  if (!m) return { present: false, fields: [], blank: [], deduction: penalty, endLine: 0, missingHint };
+  const fields = [];
+  for (const line of m[1].split('\n')) {
+    const f = /^[\s*]*(Name|Period|Assignment)\s*:[ \t]*(.*)$/i.exec(line);
+    if (f) {
+      const value = f[2].replace(/[\s*]+$/, '').trim();
+      fields.push({ key: f[1].toLowerCase(), label: f[1][0].toUpperCase() + f[1].slice(1).toLowerCase(), value, filled: !!value });
+    }
+  }
+  const blank = fields.filter((f) => f.key === 'name' && !f.filled).map((f) => f.label);
+  return { present: true, fields, blank, deduction: blank.length ? penalty : 0,
+           endLine: source.slice(0, m.index + m[0].length).split('\n').length, missingHint };
+}
+
 /** Total after the header deduction, never below 0. */
 export function frqTotal(result, cfg) {
   let t = Object.values(result.points).reduce((s, [earned]) => s + earned, 0);

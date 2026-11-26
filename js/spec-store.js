@@ -20,8 +20,12 @@
 // =====================================================================
 
 import { SPECS as BUILT_IN } from '../specs/index.js';
+import { isFrqConfig, frqLabel, frqToSpec } from './frq-spec.js';
 
 const STORE_KEY = 'grader:privateSpecs';
+// FRQs come from the private frq-grader zip (its frq/**/*.json configs and grader/*.java files).
+// Kept apart from the assignment specs, so loading one zip never removes what the other loaded.
+const FRQ_KEY = 'grader:privateFrqs';
 
 /** Built-in (public) assignments: { key, label, builtIn: true, file } */
 function builtInList() {
@@ -35,18 +39,27 @@ function readStore() {
   } catch { return null; }
 }
 
-/** Every assignment for the dropdown: private ones first, then the public ones. */
+function readFrqs() {
+  try {
+    const raw = localStorage.getItem(FRQ_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+/** Every assignment for the dropdown: private ones first, then FRQs, then the public ones. */
 export function specList() {
   const store = readStore();
   const priv = (store?.specs || []).map((s) => ({ key: `private:${s.file}`, label: s.label, builtIn: false, file: s.file }));
-  return [...priv, ...builtInList()];
+  const frqs = (readFrqs()?.frqs || []).map((f) => ({ key: `frq:${f.id}`, label: frqLabel(f.cfg, f.folder), builtIn: false, file: `frq:${f.id}`, frq: true }));
+  return [...priv, ...frqs, ...builtInList()];
 }
 
-/** { count, source, loadedAt, mailer } for the status line, or null if none loaded. */
+/** { count, source, loadedAt, mailer, frqs, frqSource } for the status line, or null if nothing is loaded. */
 export function privateInfo() {
-  const store = readStore();
-  if (!store?.specs?.length) return null;
-  return { count: store.specs.length, source: store.source, loadedAt: store.loadedAt, mailer: !!store.mailer };
+  const store = readStore(), frq = readFrqs();
+  if (!store?.specs?.length && !frq?.frqs?.length) return null;
+  return { count: store?.specs?.length || 0, source: store?.source || '', loadedAt: store?.loadedAt || frq?.loadedAt,
+           mailer: !!store?.mailer, frqs: frq?.frqs?.length || 0, frqSource: frq?.source || '' };
 }
 
 /** { url, key } from mailer.js in the private zip, or null. */
@@ -55,7 +68,7 @@ export function privateMailer() {
 }
 
 export function clearPrivate() {
-  try { localStorage.removeItem(STORE_KEY); } catch { /* storage blocked */ }
+  try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(FRQ_KEY); } catch { /* storage blocked */ }
 }
 
 // Specs import helpers with a relative path ('../js/spec-helpers.js'). A spec
@@ -72,6 +85,11 @@ async function importText(text) {
 
 /** Imports one assignment by its dropdown key. */
 export async function importSpec(key) {
+  if (key.startsWith('frq:')) {
+    const entry = (readFrqs()?.frqs || []).find((f) => f.id === key.slice(4));
+    if (!entry) throw new Error('That FRQ is no longer loaded. Click "Load assignments" and choose the frq-grader zip again.');
+    return frqToSpec(entry);
+  }
   if (key.startsWith('private:')) {
     const file = key.slice('private:'.length);
     const entry = (readStore()?.specs || []).find((s) => s.file === file);
@@ -100,18 +118,23 @@ function looksLikeSpec(text) {
  * @param files  File objects from an <input type="file">
  */
 export async function loadPrivate(files, JSZip) {
-  const texts = new Map();   // path -> text
+  const texts = new Map();   // path -> text (.js: assignment specs)
+  const frqTexts = new Map(); // path -> text (.json / .java: FRQs)
   for (const f of files) {
     if (/\.zip$/i.test(f.name)) {
       const zip = await JSZip.loadAsync(f);
       for (const entry of Object.values(zip.files)) {
-        if (entry.dir || !/\.js$/i.test(entry.name) || /(^|\/)(node_modules|__MACOSX)\//.test(entry.name)) continue;
-        texts.set(entry.name, await entry.async('string'));
+        if (entry.dir || /(^|\/)(node_modules|__MACOSX)\//.test(entry.name)) continue;
+        if (/\.js$/i.test(entry.name)) texts.set(entry.name, await entry.async('string'));
+        else if (/\.(json|java)$/i.test(entry.name)) frqTexts.set(entry.name, await entry.async('string'));
       }
     } else if (/\.js$/i.test(f.name)) {
       texts.set(f.webkitRelativePath || f.name, await f.text());
+    } else if (/\.(json|java)$/i.test(f.name)) {
+      frqTexts.set(f.webkitRelativePath || f.name, await f.text());
     }
   }
+  const frqs = findFrqs(frqTexts);
 
   // Prefer the folder whose index.js lists the assignments (keeps your order and labels).
   const indexPath = [...texts.keys()].find((p) => baseName(p) === 'index.js' && /export\s+const\s+SPECS\s*=/.test(texts.get(p)));
@@ -136,8 +159,8 @@ export async function loadPrivate(files, JSZip) {
       specs.push({ file, label: id && title ? `${id} — ${title}` : file, text });
     }
   }
-  if (!specs.length) {
-    throw new Error('No assignment files found. Choose the zip of your private repository (it needs a specs folder with index.js), or select the spec .js files.');
+  if (!specs.length && !frqs.length) {
+    throw new Error('No assignment files or FRQs found. Choose the zip of your private assignments repository (it needs a specs folder with index.js) or of frq-grader (frq/ configs and grader/ files).');
   }
 
   // Make sure every file actually loads before replacing what's saved.
@@ -166,9 +189,40 @@ export async function loadPrivate(files, JSZip) {
 
   const source = files.length === 1 ? files[0].name : `${files.length} files`;
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({ source, loadedAt: new Date().toISOString(), specs, mailer }));
+    if (specs.length) localStorage.setItem(STORE_KEY, JSON.stringify({ source, loadedAt: new Date().toISOString(), specs, mailer }));
+    if (frqs.length) localStorage.setItem(FRQ_KEY, JSON.stringify({ source, loadedAt: new Date().toISOString(), frqs }));
   } catch {
     throw new Error('This browser would not save the assignments (storage is full or blocked).');
   }
-  return { count: specs.length, skipped };
+  return { count: specs.length, skipped, frqs: frqs.length, frqProblems };
+}
+
+/**
+ * FRQs in a zip: each .json config with student_class / grader_class / parts, plus the grader and
+ * support .java files it names (found anywhere in the zip by file name, e.g. frq-grader's grader/).
+ * Answer keys (key/) and starter files are never stored: only the files a config names.
+ */
+let frqProblems = [];
+function findFrqs(frqTexts) {
+  frqProblems = [];
+  const javaByName = new Map();
+  for (const [path, text] of frqTexts) if (/\.java$/i.test(path) && !/(^|\/)key\//.test(path)) javaByName.set(baseName(path), text);
+  const out = [];
+  const seen = new Set();
+  for (const [path, text] of [...frqTexts].sort(([a], [b]) => a.localeCompare(b))) {
+    if (!/\.json$/i.test(path)) continue;
+    let cfg;
+    try { cfg = JSON.parse(text); } catch { continue; }
+    if (!isFrqConfig(cfg)) continue;
+    const id = baseName(path).replace(/\.json$/i, '');
+    if (seen.has(id)) { frqProblems.push(`${id}.json appears twice; kept the first`); continue; }
+    const pick = (names) => Object.fromEntries((names || []).filter((n) => n !== 'FrqHarness.java').map((n) => [n, javaByName.get(n)]));
+    const graderFiles = pick(cfg.grader_files), supportFiles = pick(cfg.support_files);
+    const missing = [...Object.entries(graderFiles), ...Object.entries(supportFiles)].filter(([, t]) => t == null).map(([n]) => n);
+    if (missing.length) { frqProblems.push(`${id}: missing ${missing.join(', ')}`); continue; }
+    seen.add(id);
+    const folder = (path.split('/').slice(-2, -1)[0] || '').replace(/^frq$/i, '');
+    out.push({ id, folder, cfg, graderFiles, supportFiles });
+  }
+  return out;
 }
