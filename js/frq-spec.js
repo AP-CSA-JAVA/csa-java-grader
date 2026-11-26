@@ -60,8 +60,10 @@ export function frqToSpec(entry) {
       check(out) {
         if (!graderName) return ids.map((id) => ({ label: label(id), pass: null, detail: 'The grader file is missing from the loaded zip.' }));
         if (out.status === 'driverCompile') {
-          return ids.map((id) => ({ label: label(id), pass: false,
-            detail: `The grader could not call your methods. Check that the method names, parameters, and return types match the prompt. (${out.exception})` }));
+          return ids.map((id, i) => ({ label: label(id), pass: false,
+            detail: i === 0
+              ? `The grader could not call your methods. Check that the method names, parameters, and return types match the prompt. (${out.exception})`
+              : 'Method header does not match the prompt.' }));
         }
         const { points, done } = parsePoints(out.stdout);
         return ids.map((id) => (points[id]
