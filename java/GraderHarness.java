@@ -5,8 +5,8 @@
  * Kept deliberately small: all grading logic lives in JavaScript so it can be
  * edited in the GitHub web editor without rebuilding this JAR.
  *
- * Build (Java 8 target; includes cjgrader/LoopGuard):
- *   javac --release 8 -d build java/GraderHarness.java java/cjgrader/LoopGuard.java
+ * Build (Java 8 target; includes cjgrader/LoopGuard and FrqHarness):
+ *   javac --release 8 -d build java/GraderHarness.java java/cjgrader/LoopGuard.java java/FrqHarness.java
  *   jar cf lib/grader-harness.jar -C build .
  */
 
@@ -29,7 +29,7 @@ import java.util.List;
 public class GraderHarness {
 
     /** Shown by the grader and test page, to confirm the browser loaded this build and not a cached one. */
-    public static final String VERSION = "2026-10-14c (Eclipse compiler, loop guard, library mode)";
+    public static final String VERSION = "2026-11-26 (Eclipse compiler, loop guard, library mode, FRQ harness)";
 
     public static String version() {
         return VERSION;

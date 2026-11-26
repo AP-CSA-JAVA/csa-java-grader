@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>FRQ grading test</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cjrtnc.leaningtech.com/4.3/loader.js"></script>
+  <style>
+    main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 14px; }
+    th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #ddd; vertical-align: top; }
+    .ok { color: #1e7b45; font-weight: 700; } .no { color: #b42318; font-weight: 700; }
+    pre.out { white-space: pre-wrap; background: #f5f6f8; padding: 8px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">J</span><div><h1>FRQ grading test</h1><p class="sub">Checks that FRQ grading runs in this browser</p></div></div>
+    <div id="javaStatus" class="pill pill-wait" role="status">Java: starting…</div>
+  </header>
+  <main>
+    <section class="card">
+      <h2>1. Built-in self-test</h2>
+      <p>A tiny made-up FRQ with four students: one correct, one with an endless loop, one that prints forever, and one that calls
+        <code>System.exit</code>. Each bad one should lose only the part with the problem, and the page should never freeze.</p>
+      <button id="selfTest" disabled>Run the self-test</button>
+      <div id="selfOut"></div>
+    </section>
+    <section class="card">
+      <h2>2. One of your FRQs</h2>
+      <p>Choose the FRQ's <code>.json</code> config, its grader and support <code>.java</code> files (from frq-grader's <code>grader/</code> folder),
+        and one or more student files (for example the answer key). Nothing leaves this browser.</p>
+      <input type="file" id="files" multiple accept=".json,.java">
+      <button id="runMine" disabled>Grade</button>
+      <div id="mineOut"></div>
+    </section>
+    <p class="sub" id="ver"></p>
+  </main>
+  <pre id="console" hidden></pre>
+
+<script type="module">
+import { startJava, compileStudent, compileDriver, runStudent, harnessVersion } from './js/runner.js';
+import { gradeFrq, pointIds } from './js/frq.js';
+const $ = (s) => document.querySelector(s);
+const java = { compileStudent, compileDriver, runStudent };
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+function table(rows, cfg) {
+  const ids = pointIds(cfg);
+  let h = `<table><tr><th>Student</th><th>Total</th><th>Flags</th>${ids.map((i) => `<th>${esc(i)}</th>`).join('')}<th>Time</th></tr>`;
+  for (const { name, r, ms } of rows) {
+    h += `<tr><td>${esc(name)}</td><td>${r.total}</td><td>${esc(r.flags.join(', ') || '-')}</td>`
+      + ids.map((i) => `<td class="${r.points[i][0] ? 'ok' : 'no'}" title="${esc(r.points[i][1])}">${r.points[i][0] ? '✓' : '✗'}</td>`).join('')
+      + `<td>${(ms / 1000).toFixed(1)} s</td></tr>`;
+    const lost = ids.filter((i) => !r.points[i][0]);
+    if (lost.length || r.compileOutput) {
+      h += `<tr><td></td><td colspan="${ids.length + 3}"><pre class="out">${esc(lost.map((i) => `${i}: ${r.points[i][1]}`).join('\n') + (r.compileOutput ? '\n' + r.compileOutput : ''))}</pre></td></tr>`;
+    }
+  }
+  return h + '</table>';
+}
+
+async function gradeAll(frq, students, out) {
+  const rows = [];
+  for (const [name, src] of students) {
+    out.innerHTML = table(rows, frq.cfg) + `<p>Grading ${esc(name)}…</p>`;
+    const t = performance.now();
+    rows.push({ name, r: await gradeFrq(java, frq, src), ms: performance.now() - t });
+  }
+  out.innerHTML = table(rows, frq.cfg);
+  return rows;
+}
+
+// ---------- 1. built-in self-test: a made-up FRQ ----------
+const CFG = { title: 'Self-test: Counter', student_class: 'Counter', grader_class: 'CounterGrader', grader_files: ['CounterGrader.java'],
+  require_header: false, parts: [{ name: 'Part (a) sumTo', points: [{ id: 'A1' }, { id: 'A2' }] }, { name: 'Part (b) countEven', points: [{ id: 'B1' }] }] };
+const GRADER = `public class CounterGrader extends FrqHarness {
+  public static void main(String[] args) { new CounterGrader().runAll(); }
+  protected void defineChecks() {
+    point("A1"); test("sumTo(4)", () -> expectEquals(10, Counter.sumTo(4), "sumTo(4)"));
+    point("A2"); test("sumTo(0)", () -> expectEquals(0, Counter.sumTo(0), "sumTo(0)"));
+                 test("sumTo(100)", () -> expectEquals(5050, Counter.sumTo(100), "sumTo(100)"));
+    point("B1"); test("countEven({1,2,4})", () -> expectEquals(2, Counter.countEven(new int[] {1, 2, 4}), "countEven"));
+  }
+}`;
+const A_OK = 'public static int sumTo(int n) { int s = 0; for (int i = 1; i <= n; i++) { s += i; } return s; }';
+const B_OK = 'public static int countEven(int[] a) { int c = 0; for (int x : a) { if (x % 2 == 0) { c++; } } return c; }';
+const cls = (a, b) => `public class Counter {\n  ${a}\n  ${b}\n}\n`;
+const SELF = [
+  ['correct (should be 3/3)', cls(A_OK, B_OK)],
+  ['endless loop in (a) (should lose A1, A2 only)', cls('public static int sumTo(int n) { int s = 0; int i = 1; while (i <= n) { s += i; } return s; }', B_OK)],
+  ['prints forever in (b) (should lose B1 only)', cls(A_OK, 'public static int countEven(int[] a) { while (a != null) { System.out.println("counting"); } return 0; }')],
+  ['System.exit in (b) (should lose B1 only)', cls(A_OK, 'public static int countEven(int[] a) { if (a != null) { System.exit(0); } return 0; }')],
+];
+$('#selfTest').onclick = async () => {
+  $('#selfTest').disabled = true;
+  const rows = await gradeAll({ cfg: CFG, graderFiles: { 'CounterGrader.java': GRADER }, supportFiles: {} }, SELF, $('#selfOut'));
+  const want = [[1, 1, 1], [0, 0, 1], [1, 1, 0], [1, 1, 0]];
+  const pass = rows.every((row, i) => ['A1', 'A2', 'B1'].every((id, j) => row.r.points[id][0] === want[i][j]));
+  $('#selfOut').insertAdjacentHTML('beforeend', pass ? '<p class="ok">Self-test passed: FRQ grading works in this browser.</p>'
+    : '<p class="no">Self-test did not give the expected scores. Take a screenshot of this page.</p>');
+  $('#selfTest').disabled = false;
+};
+
+// ---------- 2. teacher's own FRQ files ----------
+$('#runMine').onclick = async () => {
+  const files = [...$('#files').files];
+  const texts = Object.fromEntries(await Promise.all(files.map(async (f) => [f.name, await f.text()])));
+  const cfgName = Object.keys(texts).find((n) => n.endsWith('.json'));
+  if (!cfgName) { $('#mineOut').innerHTML = '<p class="no">Choose the FRQ\'s .json config too.</p>'; return; }
+  const cfg = JSON.parse(texts[cfgName]);
+  const pick = (names) => Object.fromEntries((names || []).filter((n) => texts[n]).map((n) => [n, texts[n]]));
+  const graderFiles = pick(cfg.grader_files), supportFiles = pick(cfg.support_files);
+  const missing = (cfg.grader_files || []).filter((n) => n !== 'FrqHarness.java' && !texts[n]).concat((cfg.support_files || []).filter((n) => !texts[n]));
+  if (missing.length) { $('#mineOut').innerHTML = `<p class="no">Also choose: ${esc(missing.join(', '))}</p>`; return; }
+  const used = new Set([cfgName, ...(cfg.grader_files || []), ...(cfg.support_files || [])]);
+  const students = Object.entries(texts).filter(([n]) => n.endsWith('.java') && !used.has(n));
+  if (!students.length) { $('#mineOut').innerHTML = '<p class="no">Choose at least one student file.</p>'; return; }
+  $('#runMine').disabled = true;
+  await gradeAll({ cfg, graderFiles, supportFiles }, students, $('#mineOut'));
+  $('#runMine').disabled = false;
+};
+
+startJava((s) => { $('#javaStatus').textContent = 'Java: ' + s; })
+  .then(() => {
+    $('#javaStatus').className = 'pill pill-ok';
+    $('#selfTest').disabled = false; $('#runMine').disabled = false;
+    $('#ver').textContent = 'Grader harness: ' + (harnessVersion || '(slow mode)');
+    if (!/FRQ harness/.test(harnessVersion)) $('#ver').textContent += ' — this is an old cached copy. Reload with Cmd+Shift+R (Ctrl+Shift+R on Windows).';
+  })
+  .catch((e) => { $('#javaStatus').className = 'pill pill-bad'; $('#javaStatus').textContent = 'Java: ' + e.message; });
+</script>
+</body>
+</html>

@@ -48,6 +48,14 @@ The assignments are kept in this browser only (nothing is uploaded). Load the zi
 
 Adding an assignment and testing changes are explained in the private repository's README.
 
+## FRQ grading (in progress)
+
+FRQs are being moved here from the desktop FRQ grader, so they can be graded in the browser too, one rubric point at a time.
+So far the grading engine is done: `java/FrqHarness.java` (in `lib/grader-harness.jar`) and `js/frq.js`. Graded on the same
+33 FRQs, it gives the same scores as the desktop grader. **frq-test.html** checks that it works in your browser: run its
+self-test, or load one of your FRQ's files. The FRQ configs, graders and answer keys stay in the private frq-grader repository.
+`test/frq-node.mjs` runs the same code on a desktop JVM.
+
 ## Good to know
 
 - **Java 8 and newer Java.** Every program is compiled by Java 8 rules first, because that is the course version. If that fails, the grader tries Java 17 rules. A program that compiles there was written with newer Java (common for students who compete or copy from tutorials or AI): it is graded normally with **no penalty**, marked **JAVA 17** in the table, and the details, correction sheet and class summary list each newer feature with its line numbers and the Java 8 way to write it. To treat newer Java as a compile error instead, set `allowNewerJava: false` in `js/config.js`. Java 21 features (pattern matching in `switch`) still don't compile.
